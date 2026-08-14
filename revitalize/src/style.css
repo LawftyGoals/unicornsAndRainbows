@@ -9,3 +9,9 @@ body {
   justify-content: center;
 }
 
+
+#debug {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+}
