@@ -1,5 +1,14 @@
 import "./style.css";
 
+let frameCount = 0;
+const debugDiv = gEI("debug");
+
+function getDebug(innerHtml: string) {
+  if (frameCount == 3 && debugDiv) debugDiv.innerHTML = innerHtml;
+
+  frameCount++;
+  if (frameCount >= 10) frameCount = 0;
+}
 type Position = {
   x: number;
   y: number;
@@ -23,45 +32,43 @@ type Thing = {
 }
 
 type Zone = {
+  color: string,
   position: Position,
   size: Size
 };
 
-
-const WorldPosition = {
-  x: 0,
-  y: 0,
-}
-
 const defaultZoneSize = {h: 720, w: 1280};
 
-const map = [
-  {position: {x:0, y:0}, size: defaultZoneSize},
-  {position: {x:1, y:0}, size: defaultZoneSize},
-  {position: {x:2, y:0}, size: defaultZoneSize},
-  {position: {x:0, y:1}, size: defaultZoneSize},
-  {position: {x:1, y:1}, size: defaultZoneSize},
-  {position: {x:2, y:1}, size: defaultZoneSize},
-  {position: {x:0, y:2}, size: defaultZoneSize},
-  {position: {x:1, y:2}, size: defaultZoneSize},
-  {position: {x:2, y:2}, size: defaultZoneSize}
-];
-
-function zoneIndexConverter({x, y}: Position){
-  const convX = defaultZoneSize.w + (defaultZoneSize.w * x);
-  return 
+const WorldPosition = {
+  x: defaultZoneSize.w/2,
+  y: defaultZoneSize.h/2,
+  xStart: 0,
+  xEnd: defaultZoneSize.w,
+  yStart: 0,
+  yEnd: defaultZoneSize.h
 }
 
+const map = [
+  {color: "rebeccapurple", position: {x:0, y:0}, size: defaultZoneSize},
+  {color: "blue", position: {x:1, y:0}, size: defaultZoneSize},
+  {color: "teal", position: {x:2, y:0}, size: defaultZoneSize},
+  {color: "orange", position: {x:0, y:1}, size: defaultZoneSize},
+  {color: "green", position: {x:1, y:1}, size: defaultZoneSize},
+  {color: "black", position: {x:2, y:1}, size: defaultZoneSize},
+  {color: "pink", position: {x:0, y:2}, size: defaultZoneSize},
+  {color: "brown", position: {x:1, y:2}, size: defaultZoneSize},
+  {color: "grey", position: {x:2, y:2}, size: defaultZoneSize}
+];
+
+const mapBorders = {x:[1280, 2560, 3840], y:[720, 1440, 2160]};
 
 const cv = {
+  color: "magenta",
   position: {
     x: 0,
     y: 0,
   },
-  size: {
-    h: 720,
-    w: 1280,
-  }
+  size: defaultZoneSize
 };
 
 let paused = true;
@@ -127,22 +134,34 @@ function fR(
 
 function fRbg(
   ctx: CanvasRenderingContext2D,
-  thing: Thing
+  zone: Zone 
 ){
-  const {position: {x, y}, size: {h, w}, color} = thing;
+  const {position: {x, y}, size: {h, w}, color} = zone;
   ctx.fillStyle = color;
   ctx.fillRect(x, y, w, h);
 }
 
-let frameCount = 0;
-const debugDiv = gEI("debug");
+function positionZoneConverter({x, y}: Position){
+  const convX = x * defaultZoneSize.w;
+  const convY = y * defaultZoneSize.h;
 
-function getDebug(innerHtml: string) {
-  if (frameCount == 3 && debugDiv) debugDiv.innerHTML = innerHtml;
-
-  frameCount++;
-  if (frameCount >= 10) frameCount = 0;
+  return {x: convX, y: convY};
 }
+
+function fRMbg(
+  ctx: CanvasRenderingContext2D,
+  zone: Zone 
+){
+  const {position, size: {h, w}, color} = zone;
+  const {x, y} = positionZoneConverter(position);
+  ctx.fillStyle = color;
+  ctx.translate(x - WorldPosition.xStart, y - WorldPosition.yStart);
+  ctx.fillRect(0, 0, w, h);
+  ctx.translate(-(x-WorldPosition.xStart), - (y-WorldPosition.yStart))
+  getDebug(`${WorldPosition.x}`);
+}
+
+
 
 function sH(keyCode: string) {
   return activeKeys.has(keyCode);
@@ -185,12 +204,11 @@ function move(elapsedMS: number, thing: Thing) {
   thing.position.x += movementX;
   thing.position.y += movementY ;
 
-  //getDebug(`${thing.position.x} - ${thing.position.y} `);
 }
 
 function rotatospotatos(thing: Thing){
   thing.rotation = (Math.atan2(thing.rotationTarget.y - thing.position.y, thing.rotationTarget.x - thing.position.x))-(Math.PI/4) ;
-  if(thing.id === 0) getDebug(`${thing.rotationTarget.x} ${thing.rotationTarget.y} - ${thing.position.x} ${thing.position.y} ${thing.rotation}`);
+  //if(thing.id === 0) getDebug(`${thing.rotationTarget.x} ${thing.rotationTarget.y} - ${thing.position.x} ${thing.position.y} ${thing.rotation}`);
 }
 
 
@@ -199,29 +217,19 @@ function draw(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number
   const elapsedMS = elapsed / 1000;
   if(!paused){
 
-    //TODO(Lawfty): don't like this passing around thing thing.
     fRbg(
       ctx, 
-      {
-        id:-1, 
-        color: "rebeccapurple",
-        moving: false,
-        position: { x: 0, y: 0 }, 
-        speed: 0,
-        size: { w: cv.size.w, h: cv.size.h },
-        targetPosition: {x:0,y:0},
-        rotationTarget: {x:0,y:0},
-        rotation: 0,
-      }
+      cv
     );
+
+    map.forEach((zone)=> {
+      fRMbg(ctx, zone);
+    });
 
     setPlayerTarget();
   
-    things.forEach((thing, idx) => {
-      if(true || thing.moving){
-        move(elapsedMS, thing);
-      }
-      
+    things.forEach((thing) => {
+      move(elapsedMS, thing);
       rotatospotatos(thing);
       fR(ctx, thing);
     });
@@ -267,6 +275,11 @@ function addEL(canvas: HTMLCanvasElement) {
     if(keyMaps.includes(event.code))
       activeKeys.add(event.code);
     player.moving = true;
+
+    if(event.code === 'ArrowRight') {
+      WorldPosition.xStart += 1;
+      WorldPosition.xEnd = WorldPosition.x + defaultZoneSize.w;
+    }
   });
   addEventListener("keyup", (event) => {
     switch (event.code){
