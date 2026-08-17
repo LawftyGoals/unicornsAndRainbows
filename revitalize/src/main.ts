@@ -19,7 +19,7 @@ type Thing = {
   color: string,
   targetPosition: Position,
   rotationTarget: Position,
-  rotation: number;
+  rotation: number,
 }
 
 type Zone = {
@@ -79,9 +79,9 @@ const player: Thing = {
   },
   size: {h: 30, w: 30},
   color: "red",
-  targetPosition:  {x: 0, y: 0},
+  targetPosition:  {x: cv.size.w / 2, y: cv.size.h /2},
   rotationTarget: mousePosition,
-  rotation: 0
+  rotation: 0,
 };
 
 
@@ -99,7 +99,7 @@ function randomThingCreator(count: number){
         color: `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`,
         targetPosition: player.position,
         rotationTarget: player.position,
-        rotation: 0
+        rotation: 0,
       }
     )
   }
@@ -116,11 +116,21 @@ function fR(
   ctx: CanvasRenderingContext2D,
   thing: Thing
 ) {
-  const {position: {x, y}, size: {h, w}, color, rotation } = thing;
+  const {position: {x, y}, size: {h, w}, color, rotation} = thing;
   ctx.fillStyle = color;
   ctx.translate(x, y);
-  ctx.rotate(rotation);
+  ctx.rotate(rotation );
+  ctx.fillRect(0, 0, w, h);
+  ctx.rotate(-(rotation ));
   ctx.translate(-x,-y);
+}
+
+function fRbg(
+  ctx: CanvasRenderingContext2D,
+  thing: Thing
+){
+  const {position: {x, y}, size: {h, w}, color} = thing;
+  ctx.fillStyle = color;
   ctx.fillRect(x, y, w, h);
 }
 
@@ -134,67 +144,63 @@ function getDebug(innerHtml: string) {
   if (frameCount >= 10) frameCount = 0;
 }
 
-function sH(keyCode: number) {
+function sH(keyCode: string) {
   return activeKeys.has(keyCode);
 }
 
 function setPlayerTarget(){
 
-  if (sH(65)) {
+  if (sH('KeyA')) {
     //A
-    player.targetPosition.x = player.position.x - 1;
+    player.targetPosition.x = player.position.x - 10;
   }
-  if (sH(68)) {
+  if (sH('KeyD')) {
     //D
-    player.targetPosition.x = player.position.x + 1;
+    player.targetPosition.x = player.position.x + 10;
   }
-  if (sH(83)) {
+  if (sH('KeyS')) {
     //S
-    player.targetPosition.y = player.position.y + 1;
+    player.targetPosition.y = player.position.y + 10;
   }
-  if (sH(87)) {
+  if (sH('KeyW')) {
     //W
-    player.targetPosition.y = player.position.y - 1;
+    player.targetPosition.y = player.position.y - 10;
   }
 
 }
 
 function move(elapsedMS: number, thing: Thing) {
 
-  const omx = thing.targetPosition.x - thing.position.x;
-  const omy = thing.targetPosition.y - thing.position.y;
+  const omx = thing.moving ? (thing.targetPosition.x - thing.position.x) : 0;
+  const omy = thing.moving ? (thing.targetPosition.y - thing.position.y) : 0;
 
   const magdeb = Math.sqrt(omx * omx + omy * omy);
 
-  const nmx = omx / magdeb;
-  const nmy = omy / magdeb;
+  const nmx = magdeb >= 1 ? omx / magdeb : 0;
+  const nmy = magdeb >= 1 ? omy / magdeb : 0;
 
-  const movementX = thing.speed * elapsedMS * nmx;
-  const movementY = thing.speed * elapsedMS * nmy;
+  const movementX = (thing.speed * elapsedMS * nmx);
+  const movementY = (thing.speed * elapsedMS * nmy);
 
-  if (magdeb >= 1) {
-    thing.position.x += movementX;
-    thing.position.y += movementY;
-  }
+  thing.position.x += movementX;
+  thing.position.y += movementY ;
 
   //getDebug(`${thing.position.x} - ${thing.position.y} `);
 }
 
 function rotatospotatos(thing: Thing){
-  thing.rotation = (Math.atan2(thing.rotationTarget.y - thing.position.y, thing.rotationTarget.x - thing.position.x) * (180/Math.PI)) ;
-  getDebug(`${thing.rotationTarget.x} ${thing.rotationTarget.y} - ${thing.position.x} ${thing.position.y} ${thing.rotation}`);
+  thing.rotation = (Math.atan2(thing.rotationTarget.y - thing.position.y, thing.rotationTarget.x - thing.position.x))-(Math.PI/4) ;
+  if(thing.id === 0) getDebug(`${thing.rotationTarget.x} ${thing.rotationTarget.y} - ${thing.position.x} ${thing.position.y} ${thing.rotation}`);
 }
 
 
 function draw(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number) {
   const elapsed = timestamp - prevTime;
   const elapsedMS = elapsed / 1000;
-  const toSTR = Array.from(activeKeys).toString();
-  //getDebug(`${toSTR}`);
   if(!paused){
 
     //TODO(Lawfty): don't like this passing around thing thing.
-    fR(
+    fRbg(
       ctx, 
       {
         id:-1, 
@@ -205,18 +211,19 @@ function draw(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number
         size: { w: cv.size.w, h: cv.size.h },
         targetPosition: {x:0,y:0},
         rotationTarget: {x:0,y:0},
-        ratation: 0
+        rotation: 0,
       }
     );
 
     setPlayerTarget();
   
     things.forEach((thing, idx) => {
-      rotatospotatos(thing);
-      if(thing.moving){
+      if(true || thing.moving){
         move(elapsedMS, thing);
       }
-      if(idx < 100) fR(ctx, thing);
+      
+      rotatospotatos(thing);
+      fR(ctx, thing);
     });
   }
 
@@ -255,17 +262,19 @@ function addEL(canvas: HTMLCanvasElement) {
     if((y >= 0) && (y <= defaultZoneSize.h)) mousePosition.y = y;
   });
 
+  const keyMaps = ['KeyA', 'KeyS', 'KeyD', 'KeyW'];
   addEventListener("keydown", (event) => {
-    activeKeys.add(event.keyCode);
+    if(keyMaps.includes(event.code))
+      activeKeys.add(event.code);
     player.moving = true;
   });
   addEventListener("keyup", (event) => {
-    switch (event.keyCode){
-      case 80:
+    switch (event.code){
+      case 'KeyP':
         paused = !paused;
         break;
     }
-    activeKeys.delete(event.keyCode);
+    activeKeys.delete(event.code);
     if(activeKeys.size < 1) player.moving = false;
   });
 }
@@ -282,7 +291,7 @@ function init() {
     );
     return 0;
   }
-  randomThingCreator(0);
+  randomThingCreator(100);
 
   requestAnimationFrame((timestamp) => draw(ctx, 0, timestamp));
 }
