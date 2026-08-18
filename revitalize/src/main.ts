@@ -19,6 +19,11 @@ type Size = {
   w: number;
 };
 
+type RigidBody = {
+  w: number,
+  h: number,
+}
+
 type Thing = {
   id: number,
   speed: number,
@@ -29,6 +34,7 @@ type Thing = {
   targetPosition: Position,
   rotationTarget: Position,
   rotation: number,
+  rigidBody: RigidBody
 }
 
 type Zone = {
@@ -36,27 +42,11 @@ type Zone = {
   position: Position,
   size: Size
 };
-type WorldPosition = {
-  x: number,
-  y: number,
-  xStart: number,
-  xEnd: number,
-  yStart: number,
-  yEnd: number 
-}
+
 
 const defaultZoneSize = {h: 720, w: 1280};
 
 const playerCentered = {x: defaultZoneSize.w/2, y:  defaultZoneSize.h/2}
-
-const worldPosition = {
-  x: defaultZoneSize.w/2,
-  y: defaultZoneSize.h/2,
-  xStart: 0,
-  xEnd: defaultZoneSize.w,
-  yStart: 0,
-  yEnd: defaultZoneSize.h
-}
 
 const map = [
   {color: "rebeccapurple", position: {x:0, y:0}, size: defaultZoneSize},
@@ -72,33 +62,24 @@ const map = [
 
 const mapBorders = {x:[1280, 2560, 3840], y:[720, 1440, 2160]};
 
-const cv = {
-  color: "magenta",
-  position: {
-    x: 0,
-    y: 0,
-  },
-  size: defaultZoneSize
-};
-
 let paused = true;
 
-
-const mousePosition = { x: cv.size.w/2, y: cv.size.h/2 };
+const mousePosition = { x: defaultZoneSize.w/2, y: defaultZoneSize.h/2 };
 
 const player: Thing = {
   id: 0,
   speed: 300,
   moving: false,
   position: {
-    x: cv.size.w / 2,
-    y: cv.size.h / 2,
+    x: defaultZoneSize.w / 2,
+    y: defaultZoneSize.h / 2,
   },
   size: {h: 30, w: 30},
   color: "red",
-  targetPosition:  {x: cv.size.w / 2, y: cv.size.h /2},
+  targetPosition:  {x: defaultZoneSize.w / 2, y: defaultZoneSize.h /2},
   rotationTarget: mousePosition,
   rotation: 0,
+  rigidBody: {h: 30, w: 30}
 };
 
 
@@ -111,16 +92,16 @@ function randomThingCreator(count: number){
         id: i + 2,
         speed: 170,
         moving: true,
-        position: {x: Math.floor(Math.random()*cv.size.w), y: Math.floor(Math.random()*cv.size.h)},
+        position: {x: Math.floor(Math.random()*defaultZoneSize.w), y: Math.floor(Math.random()*defaultZoneSize.h)},
         size: {h: 20, w: 20},
         color: `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`,
         targetPosition: player.position,
         rotationTarget: player.position,
         rotation: 0,
+        rigidBody: {h: 30, w: 30}
       }
     )
   }
-
 }
 
 const activeKeys = new Set();
@@ -129,41 +110,32 @@ function gEI(id: string) {
   return document.getElementById(id);
 }
 
+function playerZoneDisplace(){
+  return {displaceX: (player.position.x - defaultZoneSize.w/2), displaceY: (player.position.y - defaultZoneSize.h/2)};
+}
+
 function fR(
   ctx: CanvasRenderingContext2D,
   thing: Thing,
-  wp: WorldPosition
-) {
-  const {position: {x, y}, size: {h, w}, color, rotation} = thing;
-  ctx.fillStyle = color;
-  ctx.translate(x - wp.xStart, y - wp.yStart);
-  ctx.rotate(rotation );
-  ctx.fillRect(0, 0, w, h);
-  ctx.rotate(-(rotation ));
-  ctx.translate(-(x - wp.xStart),-(y - wp.yStart));
-}
-
-function fRp(
-  ctx: CanvasRenderingContext2D,
-  thing: Thing,
+  position: Position,
+  displace: {displaceX: number, displaceY: number}
 ) {
   const {size: {h, w}, color, rotation} = thing;
-  const {x, y} = playerCentered
+  const {x, y} = position;
+  const {displaceX, displaceY} = displace;
   ctx.fillStyle = color;
-  ctx.translate(x, y);
-  ctx.rotate(rotation );
+  ctx.translate(x - displaceX, y - displaceY);
+  ctx.rotate(rotation);
   ctx.fillRect(0, 0, w, h);
-  ctx.rotate(-(rotation ));
-  ctx.translate(-x,-y);
+  ctx.rotate(-(rotation));
+  ctx.translate(-(x - displaceX), - (y - displaceY));
 }
 
 function fRbg(
   ctx: CanvasRenderingContext2D,
-  zone: Zone 
 ){
-  const {position: {x, y}, size: {h, w}, color} = zone;
-  ctx.fillStyle = color;
-  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = "magenta";
+  ctx.fillRect(0, 0, defaultZoneSize.w, defaultZoneSize.h);
 }
 
 function positionZoneConverter({x, y}: Position){
@@ -179,13 +151,13 @@ function fRMbg(
 ){
   const {position, size: {h, w}, color} = zone;
   const {x, y} = positionZoneConverter(position);
+  const {displaceX, displaceY} = playerZoneDisplace();
   ctx.fillStyle = color;
-  ctx.translate(x - worldPosition.xStart, y - worldPosition.yStart);
+  ctx.translate(x - displaceX, y - displaceY);
   ctx.fillRect(0, 0, w, h);
-  ctx.translate(-(x-worldPosition.xStart), - (y-worldPosition.yStart))
-  //getDebug(`${worldPosition.x}`);
-}
+  ctx.translate(-(x - displaceX), -(y - displaceY));
 
+}
 
 
 function sH(keyCode: string) {
@@ -193,7 +165,6 @@ function sH(keyCode: string) {
 }
 
 function setPlayerTarget(){
-
   if (sH('KeyA')) {
     //A
     player.targetPosition.x = player.position.x - 10;
@@ -231,18 +202,6 @@ function move(elapsedMS: number, thing: Thing){
 }
 
 
-function movePlayer(elapsedMS: number){
-  const {movementX, movementY} = move(elapsedMS, player);
-
-  player.position.x += movementX;
-  player.position.y += movementY;
-  worldPosition.xEnd += movementX;
-  worldPosition.xStart += movementX;
-  worldPosition.yStart += movementY;
-  worldPosition.yEnd += movementY;
-}
-
-
 function moveThings(elapsedMS: number, thing: Thing) {
 
   const {movementX, movementY} = move(elapsedMS, thing);
@@ -257,7 +216,6 @@ function rotatospotatos(thing: Thing, position: Position, rotationTarget: Positi
   if(thing.id === 0) getDebug(`${rotationTarget.x} ${rotationTarget.y} - ${position.x} ${position.y} ${thing.rotation}`);
 }
 
-
 function draw(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number) {
   const elapsed = timestamp - prevTime;
   const elapsedMS = elapsed / 1000;
@@ -265,7 +223,6 @@ function draw(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number
 
     fRbg(
       ctx, 
-      cv
     );
 
     map.forEach((zone)=> {
@@ -273,14 +230,16 @@ function draw(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number
     });
 
     setPlayerTarget();
-    movePlayer(elapsedMS);
+    moveThings(elapsedMS, player);
     rotatospotatos(player, playerCentered, player.rotationTarget);
-    fRp(ctx, player);
+    fR(ctx, player, playerCentered, {displaceX: 0, displaceY: 0});
+
+    const displace = playerZoneDisplace();
   
     things.forEach((thing) => {
       moveThings(elapsedMS, thing);
       rotatospotatos(thing, thing.position, thing.rotationTarget);
-      fR(ctx, thing, worldPosition);
+      fR(ctx, thing, thing.position, displace);
     });
   }
 
@@ -324,11 +283,6 @@ function addEL(canvas: HTMLCanvasElement) {
     if(keyMaps.includes(event.code))
       activeKeys.add(event.code);
     player.moving = true;
-
-    if(event.code === 'ArrowRight') {
-      worldPosition.xStart += 1;
-      worldPosition.xEnd = worldPosition.x + defaultZoneSize.w;
-    }
   });
   addEventListener("keyup", (event) => {
     switch (event.code){
