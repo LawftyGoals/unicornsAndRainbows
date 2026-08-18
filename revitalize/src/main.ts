@@ -36,10 +36,20 @@ type Zone = {
   position: Position,
   size: Size
 };
+type WorldPosition = {
+  x: number,
+  y: number,
+  xStart: number,
+  xEnd: number,
+  yStart: number,
+  yEnd: number 
+}
 
 const defaultZoneSize = {h: 720, w: 1280};
 
-const WorldPosition = {
+const playerCentered = {x: defaultZoneSize.w/2, y:  defaultZoneSize.h/2}
+
+const worldPosition = {
   x: defaultZoneSize.w/2,
   y: defaultZoneSize.h/2,
   xStart: 0,
@@ -92,7 +102,7 @@ const player: Thing = {
 };
 
 
-const things: Thing[] = [player];
+const things: Thing[] = [];
 
 function randomThingCreator(count: number){
   for(let i = 0; i < count; i++){
@@ -121,9 +131,24 @@ function gEI(id: string) {
 
 function fR(
   ctx: CanvasRenderingContext2D,
-  thing: Thing
+  thing: Thing,
+  wp: WorldPosition
 ) {
   const {position: {x, y}, size: {h, w}, color, rotation} = thing;
+  ctx.fillStyle = color;
+  ctx.translate(x - wp.xStart, y - wp.yStart);
+  ctx.rotate(rotation );
+  ctx.fillRect(0, 0, w, h);
+  ctx.rotate(-(rotation ));
+  ctx.translate(-(x - wp.xStart),-(y - wp.yStart));
+}
+
+function fRp(
+  ctx: CanvasRenderingContext2D,
+  thing: Thing,
+) {
+  const {size: {h, w}, color, rotation} = thing;
+  const {x, y} = playerCentered
   ctx.fillStyle = color;
   ctx.translate(x, y);
   ctx.rotate(rotation );
@@ -155,10 +180,10 @@ function fRMbg(
   const {position, size: {h, w}, color} = zone;
   const {x, y} = positionZoneConverter(position);
   ctx.fillStyle = color;
-  ctx.translate(x - WorldPosition.xStart, y - WorldPosition.yStart);
+  ctx.translate(x - worldPosition.xStart, y - worldPosition.yStart);
   ctx.fillRect(0, 0, w, h);
-  ctx.translate(-(x-WorldPosition.xStart), - (y-WorldPosition.yStart))
-  getDebug(`${WorldPosition.x}`);
+  ctx.translate(-(x-worldPosition.xStart), - (y-worldPosition.yStart))
+  //getDebug(`${worldPosition.x}`);
 }
 
 
@@ -188,7 +213,7 @@ function setPlayerTarget(){
 
 }
 
-function move(elapsedMS: number, thing: Thing) {
+function move(elapsedMS: number, thing: Thing){
 
   const omx = thing.moving ? (thing.targetPosition.x - thing.position.x) : 0;
   const omy = thing.moving ? (thing.targetPosition.y - thing.position.y) : 0;
@@ -201,14 +226,35 @@ function move(elapsedMS: number, thing: Thing) {
   const movementX = (thing.speed * elapsedMS * nmx);
   const movementY = (thing.speed * elapsedMS * nmy);
 
+  return {movementX, movementY};
+  
+}
+
+
+function movePlayer(elapsedMS: number){
+  const {movementX, movementY} = move(elapsedMS, player);
+
+  player.position.x += movementX;
+  player.position.y += movementY;
+  worldPosition.xEnd += movementX;
+  worldPosition.xStart += movementX;
+  worldPosition.yStart += movementY;
+  worldPosition.yEnd += movementY;
+}
+
+
+function moveThings(elapsedMS: number, thing: Thing) {
+
+  const {movementX, movementY} = move(elapsedMS, thing);
+
   thing.position.x += movementX;
   thing.position.y += movementY ;
 
 }
 
-function rotatospotatos(thing: Thing){
-  thing.rotation = (Math.atan2(thing.rotationTarget.y - thing.position.y, thing.rotationTarget.x - thing.position.x))-(Math.PI/4) ;
-  //if(thing.id === 0) getDebug(`${thing.rotationTarget.x} ${thing.rotationTarget.y} - ${thing.position.x} ${thing.position.y} ${thing.rotation}`);
+function rotatospotatos(thing: Thing, position: Position, rotationTarget: Position){
+  thing.rotation = (Math.atan2(rotationTarget.y - position.y, rotationTarget.x - position.x))-(Math.PI/4) ;
+  if(thing.id === 0) getDebug(`${rotationTarget.x} ${rotationTarget.y} - ${position.x} ${position.y} ${thing.rotation}`);
 }
 
 
@@ -227,11 +273,14 @@ function draw(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number
     });
 
     setPlayerTarget();
+    movePlayer(elapsedMS);
+    rotatospotatos(player, playerCentered, player.rotationTarget);
+    fRp(ctx, player);
   
     things.forEach((thing) => {
-      move(elapsedMS, thing);
-      rotatospotatos(thing);
-      fR(ctx, thing);
+      moveThings(elapsedMS, thing);
+      rotatospotatos(thing, thing.position, thing.rotationTarget);
+      fR(ctx, thing, worldPosition);
     });
   }
 
@@ -277,8 +326,8 @@ function addEL(canvas: HTMLCanvasElement) {
     player.moving = true;
 
     if(event.code === 'ArrowRight') {
-      WorldPosition.xStart += 1;
-      WorldPosition.xEnd = WorldPosition.x + defaultZoneSize.w;
+      worldPosition.xStart += 1;
+      worldPosition.xEnd = worldPosition.x + defaultZoneSize.w;
     }
   });
   addEventListener("keyup", (event) => {
