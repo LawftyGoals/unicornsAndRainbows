@@ -17,6 +17,13 @@ type Position = {
 type Size = {
   h: number;
   w: number;
+  halfSizeH: number,
+  halfSizeW: number
+};
+
+type BgSize = {
+  h: number;
+  w: number;
 };
 
 type RigidBody = {
@@ -40,7 +47,7 @@ type Thing = {
 type Zone = {
   color: string,
   position: Position,
-  size: Size
+  size: BgSize
 };
 
 
@@ -74,7 +81,7 @@ const player: Thing = {
     x: defaultZoneSize.w / 2,
     y: defaultZoneSize.h / 2,
   },
-  size: {h: 30, w: 30},
+  size: {h: 30, w: 30, halfSizeH: 15, halfSizeW: 15},
   color: "red",
   targetPosition:  {x: defaultZoneSize.w / 2, y: defaultZoneSize.h /2},
   rotationTarget: mousePosition,
@@ -93,7 +100,7 @@ function randomThingCreator(count: number){
         speed: 170,
         moving: true,
         position: {x: Math.floor(Math.random()*defaultZoneSize.w), y: Math.floor(Math.random()*defaultZoneSize.h)},
-        size: {h: 20, w: 20},
+        size: {h: 20, w: 20, halfSizeH: 10, halfSizeW: 10},
         color: `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`,
         targetPosition: player.position,
         rotationTarget: player.position,
@@ -131,13 +138,6 @@ function fR(
   ctx.translate(-(x - displaceX), - (y - displaceY));
 }
 
-function fRbg(
-  ctx: CanvasRenderingContext2D,
-){
-  ctx.fillStyle = "magenta";
-  ctx.fillRect(0, 0, defaultZoneSize.w, defaultZoneSize.h);
-}
-
 function positionZoneConverter({x, y}: Position){
   const convX = x * defaultZoneSize.w;
   const convY = y * defaultZoneSize.h;
@@ -158,7 +158,6 @@ function fRMbg(
   ctx.translate(-(x - displaceX), -(y - displaceY));
 
 }
-
 
 function sH(keyCode: string) {
   return activeKeys.has(keyCode);
@@ -182,6 +181,31 @@ function setPlayerTarget(){
     player.targetPosition.y = player.position.y - 10;
   }
 
+}
+
+type Corners = {
+    t: number, 
+    b: number, 
+    l: number, 
+    r: number 
+};
+
+function getEdges(thing: Thing){
+  return {
+    t: thing.position.y - thing.size.halfSizeH,  
+    b: thing.position.y + thing.size.halfSizeH,  
+    l: thing.position.x - thing.size.halfSizeW,  
+    r: thing.position.x + thing.size.halfSizeW, 
+  }
+}
+
+
+
+function bodyOverlap(cornerA: Corners, cornerB: Corners){
+  const {t: at, b: ab, l: al, r: ar} = cornerA;
+  const {t: bt, b: bb, l: bl, r: br} = cornerB;
+
+  return !(ab < bt || at > bb || ar < bl || al > br);
 }
 
 function move(elapsedMS: number, thing: Thing){
@@ -221,24 +245,26 @@ function draw(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number
   const elapsedMS = elapsed / 1000;
   if(!paused){
 
-    fRbg(
-      ctx, 
-    );
 
-    map.forEach((zone)=> {
-      fRMbg(ctx, zone);
-    });
-
+    //CALCULATIONS AND PHYSICS
     setPlayerTarget();
     moveThings(elapsedMS, player);
     rotatospotatos(player, playerCentered, player.rotationTarget);
-    fR(ctx, player, playerCentered, {displaceX: 0, displaceY: 0});
 
     const displace = playerZoneDisplace();
-  
     things.forEach((thing) => {
       moveThings(elapsedMS, thing);
       rotatospotatos(thing, thing.position, thing.rotationTarget);
+    });
+
+
+    //RENDER
+    ctx.clearRect(0,0, defaultZoneSize.w, defaultZoneSize.h);
+    map.forEach((zone)=> {
+      fRMbg(ctx, zone);
+    });
+    fR(ctx, player, playerCentered, {displaceX: 0, displaceY: 0});
+    things.forEach((thing) => {
       fR(ctx, thing, thing.position, displace);
     });
   }
