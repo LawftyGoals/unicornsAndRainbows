@@ -27,8 +27,8 @@ type BgSize = {
 };
 
 type RigidBody = {
-  w: number,
   h: number,
+  w: number,
 }
 
 type Thing = {
@@ -90,13 +90,13 @@ const player: Thing = {
 };
 
 
-const things: Thing[] = [];
+const things: Thing[] = [player];
 
 function randomThingCreator(count: number){
   for(let i = 0; i < count; i++){
     things.push(
       {
-        id: i + 2,
+        id: i + 1,
         speed: 170,
         moving: true,
         position: {x: Math.floor(Math.random()*defaultZoneSize.w), y: Math.floor(Math.random()*defaultZoneSize.h)},
@@ -183,27 +183,25 @@ function setPlayerTarget(){
 
 }
 
-type Corners = {
+type Edges = {
     t: number, 
     b: number, 
     l: number, 
     r: number 
 };
 
-function getEdges(thing: Thing){
+function getEdges(position: Position, size: Size): Edges{
   return {
-    t: thing.position.y - thing.size.halfSizeH,  
-    b: thing.position.y + thing.size.halfSizeH,  
-    l: thing.position.x - thing.size.halfSizeW,  
-    r: thing.position.x + thing.size.halfSizeW, 
+    t: position.y - size.halfSizeH,  
+    b: position.y + size.halfSizeH,  
+    l: position.x - size.halfSizeW,  
+    r: position.x + size.halfSizeW, 
   }
 }
 
-
-
-function bodyOverlap(cornerA: Corners, cornerB: Corners){
-  const {t: at, b: ab, l: al, r: ar} = cornerA;
-  const {t: bt, b: bb, l: bl, r: br} = cornerB;
+function collisionDetector(thingA: Thing, thingANewPos: Position, thingB: Thing ){
+  const {t: at, b: ab, l: al, r: ar} = getEdges(thingANewPos, thingA.size);
+  const {t: bt, b: bb, l: bl, r: br} = getEdges(thingB.position, thingB.size);
 
   return !(ab < bt || at > bb || ar < bl || al > br);
 }
@@ -218,8 +216,26 @@ function move(elapsedMS: number, thing: Thing){
   const nmx = magdeb >= 1 ? omx / magdeb : 0;
   const nmy = magdeb >= 1 ? omy / magdeb : 0;
 
-  const movementX = (thing.speed * elapsedMS * nmx);
-  const movementY = (thing.speed * elapsedMS * nmy);
+  let movementX = (thing.speed * elapsedMS * nmx);
+  let movementY = (thing.speed * elapsedMS * nmy);
+
+  for(let idx = 0; idx < things.length; idx++){
+    const otherThing = things[idx];
+    if(thing.id !== otherThing.id){
+      let thingX = thing.position.x;
+      let thingY = thing.position.y;
+      const collisionDetected = collisionDetector(thing, {x: thingX += movementX, y: thingY += movementY}, things[idx]);
+      if(collisionDetected){
+        /*const distanceBetweenThings = Math.sqrt(thingX * thingX + thingY * thingY);
+        const cutDistance = distanceBetween - thing.size.w - otherThing.size.w;
+*/      movementX = 0;
+        movementY = 0;
+      }
+
+      //if(collisionDetected)getDebug(`collision detected: thing ${thing.id} - thing ${things[idx].id}`)
+    }
+  }
+
 
   return {movementX, movementY};
   
@@ -237,7 +253,7 @@ function moveThings(elapsedMS: number, thing: Thing) {
 
 function rotatospotatos(thing: Thing, position: Position, rotationTarget: Position){
   thing.rotation = (Math.atan2(rotationTarget.y - position.y, rotationTarget.x - position.x))-(Math.PI/4) ;
-  if(thing.id === 0) getDebug(`${rotationTarget.x} ${rotationTarget.y} - ${position.x} ${position.y} ${thing.rotation}`);
+  //if(thing.id === 0) getDebug(`${rotationTarget.x} ${rotationTarget.y} - ${position.x} ${position.y} ${thing.rotation}`);
 }
 
 function draw(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number) {
@@ -252,10 +268,11 @@ function draw(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number
     rotatospotatos(player, playerCentered, player.rotationTarget);
 
     const displace = playerZoneDisplace();
-    things.forEach((thing) => {
+    for(let idx = 1; idx < things.length; idx++){
+      const thing = things[idx];
       moveThings(elapsedMS, thing);
       rotatospotatos(thing, thing.position, thing.rotationTarget);
-    });
+    };
 
 
     //RENDER
@@ -264,9 +281,10 @@ function draw(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number
       fRMbg(ctx, zone);
     });
     fR(ctx, player, playerCentered, {displaceX: 0, displaceY: 0});
-    things.forEach((thing) => {
+    for(let idx = 1; idx < things.length; idx++){
+      const thing = things[idx];
       fR(ctx, thing, thing.position, displace);
-    });
+    };
   }
 
   requestAnimationFrame((ts) => draw(ctx, timestamp, ts));
@@ -333,7 +351,7 @@ function init() {
     );
     return 0;
   }
-  randomThingCreator(100);
+  randomThingCreator(10);
 
   requestAnimationFrame((timestamp) => draw(ctx, 0, timestamp));
 }
