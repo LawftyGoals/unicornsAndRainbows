@@ -348,6 +348,10 @@ function action(elapsedS: number, thing: Thing){
               distanceY = -dist.y;
 
             }
+            if(thing.variant === Variant.player){
+              otherThing.position.x += distanceX*(4);
+              otherThing.position.y += distanceY*(4);
+            }
             break;
         }
       }
