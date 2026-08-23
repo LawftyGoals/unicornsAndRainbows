@@ -26,10 +26,21 @@ type BgSize = {
   w: number
 };
 
+
+const Variant = {
+  player: 0,
+  enemy: 1,
+  wall: 2,
+  attack: 3
+};
+
+type VariantKey = keyof typeof Variant;
+
 type Thing = {
   id: number,
-  hp: number;
-  maxHp: number;
+  variant: typeof Variant[VariantKey], 
+  hp: number,
+  maxHp: number,
   speed: number,
   slowed: number,
   moving: boolean,
@@ -80,12 +91,14 @@ const mousePosition = { x: defaultZoneSize.w/2, y: defaultZoneSize.h/2 };
 
 /*
   * collision layer: 
-  * 0 - player
-* 1 - base enemy
+  * 0 - wall
+  * 1 - player
+* 2 - base enemy
 */
 
 const player: Thing = {
   id: 0,
+  variant: Variant.player,
   hp: 500,
   maxHp: 500,
   speed: 300,
@@ -95,7 +108,7 @@ const player: Thing = {
     x: defaultZoneSize.w / 2,
     y: defaultZoneSize.h / 2,
   },
-  collisionLayer: new Set([0]),
+  collisionLayer: new Set([1]),
   targetCollisionLayer: new Set([1]),
   distanceX: 0,
   distanceY: 0,
@@ -106,15 +119,41 @@ const player: Thing = {
   rotation: 0,
 };
 
+const upperBarrier: Thing = {
+  id: -1,
+  variant: Variant.wall,
+  hp: Infinity,
+  maxHp: Infinity,
+  speed: 0,
+  slowed: 0,
+  moving: false,
+  position: {
+    x: -100,
+    y: -100,
+  },
+  collisionLayer: new Set([0]),
+  targetCollisionLayer: new Set([]),
+  distanceX: 0,
+  distanceY: 0,
+  size: {h: 1000, w: 200 + (defaultZoneSize.w * 3), halfSizeH: 500, halfSizeW: (200 + (defaultZoneSize.w*2))/2},
+  color: "yellow",
+  targetPosition: {x: -100, y: -100},
+  rotationTarget: {x:0,y:0},
+  rotation: 0,
+};
+
+
 const thingsSize = 1001;
-const things: Thing[] = new Array(thingsSize);
-things[0] = player;
+const things: {array: Thing[], lastThing: number} = {array: new Array(thingsSize), lastThing: 0};
+things.array[0] = player;
+things.lastThing = 0;
 
 function randomThingCreator(count: number){
   for(let i = 1; i < count; i++){
-    things[i] = (
+    things.array[i] = (
       {
         id: i,
+        variant: Variant.enemy,
         hp: 50,
         maxHp: 50,
         speed: 170,
@@ -132,6 +171,7 @@ function randomThingCreator(count: number){
         rotation: 0,
       }
     )
+    things.lastThing++;
   }
 }
 
@@ -249,6 +289,17 @@ function collisionDetector(thingA: Thing, thingANewPos: Position, thingB: Thing 
   return !(ab < bt || at > bb || ar < bl || al > br);
 }
 
+function detectBarrierCollision(thingA: Thing, thingANewPos: Position){
+  const {t: at, b: ab, l: al, r: ar} = getEdges(thingANewPos, thingA.size);
+  const collT = at < 0;
+  const collB = ab > (defaultZoneSize.h * 3);
+  const collL = al < 0;
+  const collR = ar > (defaultZoneSize.w * 3);
+
+
+  return {collision: (collT || collB || collL || collR), collY: collT || collB, collX: collL || collR};
+}
+
 
 
 function action(elapsedS: number, thing: Thing){
@@ -265,36 +316,51 @@ function action(elapsedS: number, thing: Thing){
 
   //TODO: REMOVE PLEASE
   thing.slowed = 0;
+  let targetPositionX = thing.position.x + distanceX;
+  let targetPositionY = thing.position.y + distanceY;
 
-  for(let idx = 0; idx < things.length; idx++){
-    const otherThing = things[idx];
+  for(let idx = 0; idx < (things.lastThing + 1); idx++){
+    const otherThing = things.array[idx];
     if(thing.id !== otherThing.id){
-      let thingX = thing.position.x;
-      let thingY = thing.position.y;
-      const collisionDetected = collisionDetector(thing, {x: thingX += distanceX, y: thingY += distanceY}, things[idx]);
+      const collisionDetected = collisionDetector(thing, {x: targetPositionX, y: targetPositionY}, otherThing);
       if(collisionDetected){
         const dist = getDistanceFromThing(elapsedS, thing, otherThing.position);
-        if(otherThing.id === 0){
-          //TODO: MOVE SLOW INTO ENEMY ATTACK
-          otherThing.slowed = 0.7;
-          if(Math.abs(dist.x) < 12 && Math.abs(dist.y) < 12){
-            distanceX = 0;
-            distanceY = 0;
-          }
-          else {
-            distanceX = -(distanceX*2);
-            distanceY = -(distanceY*2);
-          }
-        }
-        else if (thing.id !== 0){
-          if(Math.abs(dist.x) < 0.5 && Math.abs(dist.y) < 0.5){
-            dist.x = thing.size.w;
-            dist.y = thing.size.h;
-          }
-          distanceX = -dist.x;
-          distanceY = -dist.y;
+        const absX = Math.abs(dist.x);
+        const absY = Math.abs(dist.y);
+        switch(otherThing.variant){
+          case Variant.player:
+            otherThing.slowed = 0.7;
+            if(absX < 12 && absY < 12){
+              distanceX = 0;
+              distanceY = 0;
+            } else {
+              distanceX = -(distanceX*2);
+              distanceY = -(distanceY*2);
+            }
+            break;
+          case Variant.enemy:
+            if(thing.variant === Variant.enemy){
+              if(absX < 0.5 && absY < 0.5){
+                dist.x = thing.size.w;
+                dist.y = thing.size.h;
+              }
+              distanceX = -dist.x;
+              distanceY = -dist.y;
+
+            }
+            break;
         }
       }
+    }
+  }
+  const barrierCol = detectBarrierCollision(thing, {x:targetPositionX, y: targetPositionY });
+
+  if(barrierCol.collision){
+    if(barrierCol.collY){
+      distanceY = 0;
+    }
+    if(barrierCol.collX){
+      distanceX = 0;
     }
   }
 
@@ -333,8 +399,8 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number)
     rotatospotatos(player, playerCentered, player.rotationTarget);
 
     const displace = playerZoneDisplace();
-    for(let idx = 1; idx < things.length; idx++){
-      const thing = things[idx];
+    for(let idx = 1; idx < (things.lastThing + 1); idx++){
+      const thing = things.array[idx];
       if(thing.moving) moveThings(elapsedS, thing);
       rotatospotatos(thing, thing.position, thing.rotationTarget);
     };
@@ -346,8 +412,8 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number)
       drawBg(ctx, zone);
     });
     drawThing(ctx, player, playerCentered, {displaceX: 0, displaceY: 0});
-    for(let idx = 1; idx < things.length; idx++){
-      const thing = things[idx];
+    for(let idx = 1; idx < (things.lastThing + 1); idx++){
+      const thing = things.array[idx];
       drawThing(ctx, thing, thing.position, displace);
     };
   }
