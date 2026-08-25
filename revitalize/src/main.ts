@@ -34,13 +34,37 @@ const Variant = {
   attack: 3
 };
 
+const State = {
+  moving: 0,
+  still: 1,
+  attacking: 2,
+}
+
 type VariantKey = keyof typeof Variant;
+
+type Attack = {
+  damage: number,
+  cooldown: number,
+  runtime: number,
+  ammunition: number,
+  speed: number,
+  moving: boolean,
+  position: Position,
+  size: Size,
+  collisionLayer: Set<number>,
+  targetCollisionLayer: Set<number>,
+  color: string,
+  targetPosition: Position,
+  rotationTarget: Position,
+  rotation: number,
+}
 
 type Thing = {
   id: number,
   variant: typeof Variant[VariantKey], 
   hp: number,
   maxHp: number,
+  attack: Attack,
   speed: number,
   slowed: number,
   moving: boolean,
@@ -62,10 +86,9 @@ type Zone = {
   size: BgSize
 };
 
-const initThingsNotPlayer = 100;
-const CurrentNumberOfThings = 1 + initThingsNotPlayer;
+let GLOBALID = 1;
 
-function createPlayerAttack()
+const INITTHINGSNOTPLAYER = 100;
 
 const defaultZoneSize = {h: 720, w: 1280};
 
@@ -83,7 +106,6 @@ const map = [
   {color: "grey", position: {x:2, y:2}, size: defaultZoneSize}
 ];
 
-const mapBorders = {x:[1280, 2560, 3840], y:[720, 1440, 2160]};
 
 let paused = true;
 
@@ -92,15 +114,41 @@ const mousePosition = { x: defaultZoneSize.w/2, y: defaultZoneSize.h/2 };
 /*
   * collision layer: 
   * 0 - wall
-  * 1 - player
+* 1 - player
 * 2 - base enemy
 */
+
+function createAttack(attack: Attack): Thing{
+  GLOBALID++;
+  return {
+    id: GLOBALID,
+    variant: Variant.attack,
+    hp: 0,
+    maxHp: 0,
+    attack: attack,
+    speed: 0,
+    slowed: 0,
+    moving: attack.moving,
+    position: attack.position,
+    distanceX: 0,
+    distanceY: 0,
+    size: attack.size,
+    collisionLayer: new Set(attack.collisionLayer),
+    targetCollisionLayer: new Set(attack.targetCollisionLayer),
+    color: attack.color,
+    targetPosition: attack.targetPosition,
+    rotationTarget: attack.rotationTarget,
+    rotation: attack.rotation,
+  };
+
+}
 
 const player: Thing = {
   id: 0,
   variant: Variant.player,
   hp: 500,
   maxHp: 500,
+  attack: {damage: 10, cooldown: 5, runtime: 1, ammunition: Infinity, speed: 600, moving: true, position: {} as Position, size: {w: 20, h: 20, halfSizeW: 10, halfSizeH: 10}, collisionLayer: new Set([3]), targetCollisionLayer: new Set([1]), color: "darkslategray", targetPosition: {} as Position, rotationTarget: {} as Position, rotation: 0 },
   speed: 300,
   slowed: 0,
   moving: false,
@@ -108,7 +156,7 @@ const player: Thing = {
     x: defaultZoneSize.w / 2,
     y: defaultZoneSize.h / 2,
   },
-  collisionLayer: new Set([1]),
+  collisionLayer: new Set([0]),
   targetCollisionLayer: new Set([1]),
   distanceX: 0,
   distanceY: 0,
@@ -119,43 +167,30 @@ const player: Thing = {
   rotation: 0,
 };
 
-const upperBarrier: Thing = {
-  id: -1,
-  variant: Variant.wall,
-  hp: Infinity,
-  maxHp: Infinity,
-  speed: 0,
-  slowed: 0,
-  moving: false,
-  position: {
-    x: -100,
-    y: -100,
-  },
-  collisionLayer: new Set([0]),
-  targetCollisionLayer: new Set([]),
-  distanceX: 0,
-  distanceY: 0,
-  size: {h: 1000, w: 200 + (defaultZoneSize.w * 3), halfSizeH: 500, halfSizeW: (200 + (defaultZoneSize.w*2))/2},
-  color: "yellow",
-  targetPosition: {x: -100, y: -100},
-  rotationTarget: {x:0,y:0},
-  rotation: 0,
-};
 
 
-const thingsSize = 1001;
-const things: {array: Thing[], lastThing: number} = {array: new Array(thingsSize), lastThing: 0};
+const things: {array: Thing[], lastThing: number} = {array: [], lastThing: 0};
 things.array[0] = player;
 things.lastThing = 0;
 
+function swapWithLast(idx: number){
+  if(idx !== things.lastThing){
+    const lastThing = things.array[things.lastThing];
+    things.array[idx] = lastThing;
+  }
+  things.array.pop();
+}
+
 function randomThingCreator(count: number){
   for(let i = 1; i < count; i++){
+    GLOBALID++;
     things.array[i] = (
       {
-        id: i,
+        id: GLOBALID,
         variant: Variant.enemy,
         hp: 50,
         maxHp: 50,
+        attack: {damage: 10, cooldown: 5, runtime: 1, ammunition: Infinity, speed: 600, moving: true, position: {} as Position, size: {w: 20, h: 20, halfSizeW: 10, halfSizeH: 10}, collisionLayer: new Set([3]), targetCollisionLayer: new Set([1]), color: "darkslategray", targetPosition: {} as Position, rotationTarget: {} as Position, rotation: 0 },
         speed: 170,
         slowed: 0,
         moving: true,
@@ -250,10 +285,10 @@ function setPlayerTarget(){
 }
 
 type Edges = {
-    t: number, 
-    b: number, 
-    l: number, 
-    r: number 
+  t: number, 
+  b: number, 
+  l: number, 
+  r: number 
 };
 
 function getEdges(position: Position, size: Size): Edges{
@@ -277,7 +312,7 @@ function getDistanceFromThing(elapsedS: number, thing: Thing, targetPosition: Po
 
   const velocityX = thing.speed * nmx * (1 - thing.slowed);
   const velocityY = thing.speed * nmy * (1 - thing.slowed);
-  
+
   return {x: velocityX * elapsedS, y: velocityY * elapsedS}
 }
 
@@ -306,7 +341,7 @@ function action(elapsedS: number, thing: Thing){
 
   let distanceX = 0;
   let distanceY = 0;
-  
+
   if(thing.position.x === thing.targetPosition.x && thing.position.y === thing.targetPosition.y){
     distanceX = 0;
     distanceY = 0;
@@ -330,29 +365,29 @@ function action(elapsedS: number, thing: Thing){
         switch(otherThing.variant){
           case Variant.player:
             otherThing.slowed = 0.7;
-            if(absX < 12 && absY < 12){
-              distanceX = 0;
-              distanceY = 0;
-            } else {
-              distanceX = -(distanceX*2);
-              distanceY = -(distanceY*2);
-            }
-            break;
+          if(absX < 12 && absY < 12){
+            distanceX = 0;
+            distanceY = 0;
+          } else {
+            distanceX = -(distanceX*2);
+            distanceY = -(distanceY*2);
+          }
+          break;
           case Variant.enemy:
             if(thing.variant === Variant.enemy){
-              if(absX < 0.5 && absY < 0.5){
-                dist.x = thing.size.w;
-                dist.y = thing.size.h;
-              }
-              distanceX = -dist.x;
-              distanceY = -dist.y;
+            if(absX < 0.5 && absY < 0.5){
+              dist.x = thing.size.w;
+              dist.y = thing.size.h;
+            }
+            distanceX = -dist.x;
+            distanceY = -dist.y;
 
-            }
-            if(thing.variant === Variant.player){
-              otherThing.position.x += distanceX*(4);
-              otherThing.position.y += distanceY*(4);
-            }
-            break;
+          }
+          if(thing.variant === Variant.player){
+            otherThing.position.x += distanceX*(4);
+            otherThing.position.y += distanceY*(4);
+          }
+          break;
         }
       }
     }
@@ -370,16 +405,8 @@ function action(elapsedS: number, thing: Thing){
 
   return {distanceX, distanceY};
 
-  
+
 }
-
-
-function attack(){
-  
-  
-  return 0;
-}
-
 
 function moveThings(elapsedS: number, thing: Thing) {
   const {distanceX, distanceY} = action(elapsedS, thing);
@@ -432,18 +459,16 @@ function addEL(canvas: HTMLCanvasElement) {
     switch(event.button){
       case 0:
         player.moving = true;
-        break;
+      break;
       case 2:
         break;
     }
+  })); */
+  canvas.addEventListener("mouseup", (_event => {
+    things.lastThing++;
+    const attack = { ...player.attack, position: {x: player.position.x + 25, y: player.position.y + 25}, targetPosition: {x: player.position.x + 25, y: player.position.y + 25}};
+    things.array.push(createAttack(attack));
   }));
-  canvas.addEventListener("mouseup", (event => {
-    switch(event.button){
-      case 0:
-        player.moving = false;
-        break;
-    }
-  }));*/
 
   canvas.addEventListener("contextmenu", (event => {
     event.preventDefault();
@@ -467,7 +492,7 @@ function addEL(canvas: HTMLCanvasElement) {
     switch (event.code){
       case 'KeyP':
         paused = !paused;
-        break;
+      break;
     }
     activeKeys.delete(event.code);
     if(activeKeys.size < 1) player.moving = false;
@@ -486,8 +511,8 @@ function init() {
     );
     return 0;
   }
-  
-  randomThingCreator(initThingsNotPlayer);
+
+  randomThingCreator(INITTHINGSNOTPLAYER);
 
   requestAnimationFrame((timestamp) => run(ctx, 0, timestamp));
 }
