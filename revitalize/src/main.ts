@@ -119,6 +119,7 @@ const mousePosition = { x: defaultZoneSize.w/2, y: defaultZoneSize.h/2 };
 */
 
 function createAttack(attack: Attack): Thing{
+  
   GLOBALID++;
   return {
     id: GLOBALID,
@@ -169,22 +170,21 @@ const player: Thing = {
 
 
 
-const things: {array: Thing[], lastThing: number} = {array: [], lastThing: 0};
-things.array[0] = player;
-things.lastThing = 0;
+const things = [player];
+
 
 function swapWithLast(idx: number){
-  if(idx !== things.lastThing){
-    const lastThing = things.array[things.lastThing];
-    things.array[idx] = lastThing;
+  if(idx !== things.length - 1){
+    const lastThing = things[things.length - 1];
+    things[idx] = lastThing;
   }
-  things.array.pop();
+  things.pop();
 }
 
 function randomThingCreator(count: number){
   for(let i = 1; i < count; i++){
     GLOBALID++;
-    things.array[i] = (
+    things[i] = (
       {
         id: GLOBALID,
         variant: Variant.enemy,
@@ -206,7 +206,6 @@ function randomThingCreator(count: number){
         rotation: 0,
       }
     )
-    things.lastThing++;
   }
 }
 
@@ -264,22 +263,25 @@ function sH(keyCode: string) {
   return activeKeys.has(keyCode);
 }
 
-function setPlayerTarget(){
-  if (sH('KeyA')) {
+function processPlayerInput(){
+  if(sH('KeyA')) {
     //A
     player.targetPosition.x = player.position.x - 10;
   }
-  if (sH('KeyD')) {
+  if(sH('KeyD')) {
     //D
     player.targetPosition.x = player.position.x + 10;
   }
-  if (sH('KeyS')) {
+  if(sH('KeyS')) {
     //S
     player.targetPosition.y = player.position.y + 10;
   }
-  if (sH('KeyW')) {
+  if(sH('KeyW')) {
     //W
     player.targetPosition.y = player.position.y - 10;
+  }
+  if(sH('MR')){
+    createAttack();
   }
 
 }
@@ -300,8 +302,7 @@ function getEdges(position: Position, size: Size): Edges{
   }
 }
 
-function getDistanceFromThing(elapsedS: number, thing: Thing, targetPosition: Position){
-
+function normalizeMagnitude(thing: Thing, targetPosition: Position){
   const omx = thing.moving ? (targetPosition.x - thing.position.x) : 0;
   const omy = thing.moving ? (targetPosition.y - thing.position.y) : 0;
 
@@ -309,6 +310,12 @@ function getDistanceFromThing(elapsedS: number, thing: Thing, targetPosition: Po
 
   const nmx = magdeb >= 1 ? omx / magdeb : 0;
   const nmy = magdeb >= 1 ? omy / magdeb : 0;
+  return {nmx, nmy};
+
+}
+
+function getDistanceFromThing(elapsedS: number, thing: Thing, targetPosition: Position){
+  const {nmx, nmy} = normalizeMagnitude(thing, targetPosition);
 
   const velocityX = thing.speed * nmx * (1 - thing.slowed);
   const velocityY = thing.speed * nmy * (1 - thing.slowed);
@@ -332,7 +339,7 @@ function detectBarrierCollision(thingA: Thing, thingANewPos: Position){
   const collR = ar > (defaultZoneSize.w * 3);
 
 
-  return {collision: (collT || collB || collL || collR), collY: collT || collB, collX: collL || collR};
+  return {collision: (collT || collB || collL || collR), collT: collT, collB: collB, collL: collL, collR: collR};
 }
 
 
@@ -354,8 +361,9 @@ function action(elapsedS: number, thing: Thing){
   let targetPositionX = thing.position.x + distanceX;
   let targetPositionY = thing.position.y + distanceY;
 
-  for(let idx = 0; idx < (things.lastThing + 1); idx++){
-    const otherThing = things.array[idx];
+  for(let idx = 0; idx < (things.length); idx++){
+
+    const otherThing = things[idx];
     if(thing.id !== otherThing.id){
       const collisionDetected = collisionDetector(thing, {x: targetPositionX, y: targetPositionY}, otherThing);
       if(collisionDetected){
@@ -395,11 +403,17 @@ function action(elapsedS: number, thing: Thing){
   const barrierCol = detectBarrierCollision(thing, {x:targetPositionX, y: targetPositionY });
 
   if(barrierCol.collision){
-    if(barrierCol.collY){
-      distanceY = 0;
+    if(barrierCol.collT){
+      distanceY = thing.size.halfSizeH;
     }
-    if(barrierCol.collX){
-      distanceX = 0;
+    if(barrierCol.collB){
+      distanceY = -thing.size.halfSizeH;
+    }
+    if(barrierCol.collL){
+      distanceX = thing.size.halfSizeW;
+    }
+    if(barrierCol.collL){
+      distanceX = -thing.size.halfSizeW;
     }
   }
 
@@ -425,13 +439,13 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number)
   const elapsedS = elapsed / 1000;
   if(!paused){
     //CALCULATIONS AND PHYSICS
-    setPlayerTarget();
+    processPlayerInput();
     moveThings(elapsedS, player);
     rotatospotatos(player, playerCentered, player.rotationTarget);
 
     const displace = playerZoneDisplace();
-    for(let idx = 1; idx < (things.lastThing + 1); idx++){
-      const thing = things.array[idx];
+    for(let idx = 1; idx < (things.length); idx++){
+      const thing = things[idx];
       if(thing.moving) moveThings(elapsedS, thing);
       rotatospotatos(thing, thing.position, thing.rotationTarget);
     };
@@ -443,8 +457,8 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number)
       drawBg(ctx, zone);
     });
     drawThing(ctx, player, playerCentered, {displaceX: 0, displaceY: 0});
-    for(let idx = 1; idx < (things.lastThing + 1); idx++){
-      const thing = things.array[idx];
+    for(let idx = 1; idx < (things.length); idx++){
+      const thing = things[idx];
       drawThing(ctx, thing, thing.position, displace);
     };
   }
@@ -455,19 +469,29 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number)
 function addEL(canvas: HTMLCanvasElement) {
 
   const canvasRect = canvas.getClientRects()[0];
-  /*canvas.addEventListener("mousedown", (event => {
+  canvas.addEventListener("mousedown", (event => {
     switch(event.button){
       case 0:
-        player.moving = true;
-      break;
+        activeKeys.add("ML");
+        break;
       case 2:
+        activeKeys.add("MR");
         break;
     }
-  })); */
-  canvas.addEventListener("mouseup", (_event => {
-    things.lastThing++;
+  })); 
+  canvas.addEventListener("mouseup", (event => {
+    console.log(event);
+    switch(event.button){
+      case 0:
+        activeKeys.delete("ML");
+        break;
+      case 2:
+        activeKeys.delete("MR");
+        break;
+    }
+
     const attack = { ...player.attack, position: {x: player.position.x + 25, y: player.position.y + 25}, targetPosition: {x: player.position.x + 25, y: player.position.y + 25}};
-    things.array.push(createAttack(attack));
+    things.push(createAttack(attack));
   }));
 
   canvas.addEventListener("contextmenu", (event => {
