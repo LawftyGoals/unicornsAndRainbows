@@ -191,7 +191,7 @@ function randomThingCreator(count: number){
         hp: 50,
         maxHp: 50,
         attack: {damage: 10, cooldown: 5, runtime: 1, ammunition: Infinity, speed: 600, moving: true, position: {} as Position, size: {w: 20, h: 20, halfSizeW: 10, halfSizeH: 10}, collisionLayer: new Set([3]), targetCollisionLayer: new Set([1]), color: "darkslategray", targetPosition: {} as Position, rotationTarget: {} as Position, rotation: 0 },
-        speed: 170,
+        speed: 200,
         slowed: 0,
         moving: true,
         distanceX: 0,
