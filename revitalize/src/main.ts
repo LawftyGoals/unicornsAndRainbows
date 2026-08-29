@@ -44,8 +44,9 @@ type VariantKey = keyof typeof Variant;
 
 type Attack = {
   damage: number,
+  elapsed: number,
   cooldown: number,
-  runtime: number,
+  duration: number,
   ammunition: number,
   speed: number,
   moving: boolean,
@@ -57,10 +58,15 @@ type Attack = {
   targetPosition: Position,
   rotationTarget: Position,
   rotation: number,
+  innerRange: number,
+  outerRange: number,
+
+
 }
 
 type Thing = {
   id: number,
+  active: boolean,
   variant: typeof Variant[VariantKey], 
   hp: number,
   maxHp: number,
@@ -69,6 +75,8 @@ type Thing = {
   slowed: number,
   moving: boolean,
   position: Position,
+  nmx: number,
+  nmy: number,
   distanceX: number,
   distanceY: number,
   size: Size,
@@ -88,7 +96,7 @@ type Zone = {
 
 let GLOBALID = 1;
 
-const INITTHINGSNOTPLAYER = 100;
+const INITTHINGSNOTPLAYER = 10;
 
 const defaultZoneSize = {h: 720, w: 1280};
 
@@ -123,8 +131,9 @@ function createAttack(attack: Attack): Thing{
   GLOBALID++;
   return {
     id: GLOBALID,
+    active: true,
     variant: Variant.attack,
-    hp: 0,
+    hp: 1,
     maxHp: 0,
     attack: attack,
     speed: 0,
@@ -133,6 +142,8 @@ function createAttack(attack: Attack): Thing{
     position: attack.position,
     distanceX: 0,
     distanceY: 0,
+    nmx: 0,
+    nmy: 0,
     size: attack.size,
     collisionLayer: new Set(attack.collisionLayer),
     targetCollisionLayer: new Set(attack.targetCollisionLayer),
@@ -146,10 +157,11 @@ function createAttack(attack: Attack): Thing{
 
 const player: Thing = {
   id: 0,
+  active: true,
   variant: Variant.player,
   hp: 500,
   maxHp: 500,
-  attack: {damage: 10, cooldown: 5, runtime: 1, ammunition: Infinity, speed: 600, moving: true, position: {} as Position, size: {w: 20, h: 20, halfSizeW: 10, halfSizeH: 10}, collisionLayer: new Set([3]), targetCollisionLayer: new Set([1]), color: "darkslategray", targetPosition: {} as Position, rotationTarget: {} as Position, rotation: 0 },
+  attack: {elapsed: 10, damage: 10, cooldown: 1, duration: 0.3, ammunition: Infinity, speed: 600, moving: true, position: {} as Position, size: {w: 60, h: 60, halfSizeW: 30, halfSizeH: 30}, collisionLayer: new Set([3]), targetCollisionLayer: new Set([1]), color: "rgba(10, 32, 255, 0.3)", targetPosition: {} as Position, rotationTarget: {} as Position, rotation: 0, innerRange: 0, outerRange: 60},
   speed: 300,
   slowed: 0,
   moving: false,
@@ -159,6 +171,8 @@ const player: Thing = {
   },
   collisionLayer: new Set([0]),
   targetCollisionLayer: new Set([1]),
+  nmx: 0,
+  nmy: 0,
   distanceX: 0,
   distanceY: 0,
   size: {h: 30, w: 30, halfSizeH: 15, halfSizeW: 15},
@@ -187,13 +201,16 @@ function randomThingCreator(count: number){
     things[i] = (
       {
         id: GLOBALID,
+        active: true,
         variant: Variant.enemy,
         hp: 50,
         maxHp: 50,
-        attack: {damage: 10, cooldown: 5, runtime: 1, ammunition: Infinity, speed: 600, moving: true, position: {} as Position, size: {w: 20, h: 20, halfSizeW: 10, halfSizeH: 10}, collisionLayer: new Set([3]), targetCollisionLayer: new Set([1]), color: "darkslategray", targetPosition: {} as Position, rotationTarget: {} as Position, rotation: 0 },
+        attack: { elapsed: 0, damage: 10, cooldown: 5, duration: 1, ammunition: Infinity, speed: 600, moving: true, position: {} as Position, size: {w: 20, h: 20, halfSizeW: 10, halfSizeH: 10}, collisionLayer: new Set([3]), targetCollisionLayer: new Set([1]), color: "darkslategray", targetPosition: {} as Position, rotationTarget: {} as Position, rotation: 0, innerRange: 0, outerRange: 40},
         speed: 200,
         slowed: 0,
         moving: true,
+        nmx: 0,
+        nmy: 0,
         distanceX: 0,
         distanceY: 0,
         position: {x: Math.floor(Math.random()*defaultZoneSize.w), y: Math.floor(Math.random()*defaultZoneSize.h)},
@@ -280,10 +297,18 @@ function processPlayerInput(){
     //W
     player.targetPosition.y = player.position.y - 10;
   }
-  if(sH('MR')){
-    createAttack();
-  }
+  if(sH('ML')){
+    if(player.attack.elapsed >= player.attack.cooldown){
+      const {displaceX, displaceY} = playerZoneDisplace();
+      const {nmx, nmy} = normalizeMagnitude(player.position, true, {x: displaceX + mousePosition.x, y: displaceY + mousePosition.y});
+      const positionX = player.position.x + (nmx * (player.size.halfSizeW + player.attack.size.halfSizeW));
+      const positionY = player.position.y + (nmy * (player.size.halfSizeH + player.attack.size.halfSizeH));
+      const attack = {...player.attack, position: {x: positionX, y: positionY}};
+      player.attack.elapsed = 0;
+      things.push(createAttack(attack));
 
+    }
+  }
 }
 
 type Edges = {
@@ -302,9 +327,9 @@ function getEdges(position: Position, size: Size): Edges{
   }
 }
 
-function normalizeMagnitude(thing: Thing, targetPosition: Position){
-  const omx = thing.moving ? (targetPosition.x - thing.position.x) : 0;
-  const omy = thing.moving ? (targetPosition.y - thing.position.y) : 0;
+function normalizeMagnitude(position: Position, moving: boolean, targetPosition: Position){
+  const omx = moving ? (targetPosition.x - position.x) : 0;
+  const omy = moving ? (targetPosition.y - position.y) : 0;
 
   const magdeb = Math.sqrt(omx * omx + omy * omy);
 
@@ -315,7 +340,7 @@ function normalizeMagnitude(thing: Thing, targetPosition: Position){
 }
 
 function getDistanceFromThing(elapsedS: number, thing: Thing, targetPosition: Position){
-  const {nmx, nmy} = normalizeMagnitude(thing, targetPosition);
+  const {nmx, nmy} = normalizeMagnitude(thing.position, thing.moving, targetPosition);
 
   const velocityX = thing.speed * nmx * (1 - thing.slowed);
   const velocityY = thing.speed * nmy * (1 - thing.slowed);
@@ -344,7 +369,7 @@ function detectBarrierCollision(thingA: Thing, thingANewPos: Position){
 
 
 
-function action(elapsedS: number, thing: Thing){
+function moveAndCollide(elapsedS: number, thing: Thing){
 
   let distanceX = 0;
   let distanceY = 0;
@@ -364,7 +389,7 @@ function action(elapsedS: number, thing: Thing){
   for(let idx = 0; idx < (things.length); idx++){
 
     const otherThing = things[idx];
-    if(thing.id !== otherThing.id){
+    if(thing.id !== otherThing.id && otherThing.active){
       const collisionDetected = collisionDetector(thing, {x: targetPositionX, y: targetPositionY}, otherThing);
       if(collisionDetected){
         const dist = getDistanceFromThing(elapsedS, thing, otherThing.position);
@@ -372,30 +397,29 @@ function action(elapsedS: number, thing: Thing){
         const absY = Math.abs(dist.y);
         switch(otherThing.variant){
           case Variant.player:
-            otherThing.slowed = 0.7;
-          if(absX < 12 && absY < 12){
-            distanceX = 0;
-            distanceY = 0;
-          } else {
-            distanceX = -(distanceX*2);
-            distanceY = -(distanceY*2);
-          }
+            //TODO: This needs to be moved to action. otherThing.slowed = 0.7;
+            if(absX < 12 && absY < 12){
+              distanceX = 0;
+              distanceY = 0;
+            } else {
+              distanceX = -(distanceX*2);
+              distanceY = -(distanceY*2);
+            }
           break;
           case Variant.enemy:
             if(thing.variant === Variant.enemy){
-            if(absX < 0.5 && absY < 0.5){
-              dist.x = thing.size.w;
-              dist.y = thing.size.h;
+              if(absX < 0.5 && absY < 0.5){
+                dist.x = thing.size.w;
+                dist.y = thing.size.h;
+              }
+              distanceX = -dist.x;
+              distanceY = -dist.y;
             }
-            distanceX = -dist.x;
-            distanceY = -dist.y;
-
-          }
-          if(thing.variant === Variant.player){
-            otherThing.position.x += distanceX*(4);
-            otherThing.position.y += distanceY*(4);
-          }
-          break;
+            if(thing.variant === Variant.player){
+              otherThing.position.x += distanceX*(4);
+              otherThing.position.y += distanceY*(4);
+            }
+            break;
         }
       }
     }
@@ -403,17 +427,29 @@ function action(elapsedS: number, thing: Thing){
   const barrierCol = detectBarrierCollision(thing, {x:targetPositionX, y: targetPositionY });
 
   if(barrierCol.collision){
-    if(barrierCol.collT){
-      distanceY = thing.size.halfSizeH;
-    }
-    if(barrierCol.collB){
-      distanceY = -thing.size.halfSizeH;
-    }
-    if(barrierCol.collL){
-      distanceX = thing.size.halfSizeW;
-    }
-    if(barrierCol.collL){
-      distanceX = -thing.size.halfSizeW;
+    if(thing.variant === Variant.player){
+      if(barrierCol.collT || barrierCol.collB){
+        distanceY = 0;
+      }
+      if(barrierCol.collL && barrierCol.collR){
+        distanceX = 0;
+      }
+
+    } else {
+      
+      if(barrierCol.collT){
+        distanceY = thing.size.halfSizeH;
+      }
+      if(barrierCol.collB){
+        distanceY = -thing.size.halfSizeH;
+      }
+      if(barrierCol.collL){
+        distanceX = thing.size.halfSizeW;
+      }
+      if(barrierCol.collR){
+        distanceX = -thing.size.halfSizeW;
+      }
+
     }
   }
 
@@ -423,21 +459,66 @@ function action(elapsedS: number, thing: Thing){
 }
 
 function moveThings(elapsedS: number, thing: Thing) {
-  const {distanceX, distanceY} = action(elapsedS, thing);
-  thing.position.x += distanceX;
-  thing.position.y += distanceY;
-  thing.distanceX = distanceX;
-  thing.distanceY = distanceY;
+  if(thing.active){
+    const {distanceX, distanceY} = moveAndCollide(elapsedS, thing);
+    thing.position.x += distanceX;
+    thing.position.y += distanceY;
+    thing.distanceX = distanceX;
+    thing.distanceY = distanceY;
+
+  }
 }
 
 function rotatospotatos(thing: Thing, position: Position, rotationTarget: Position){
   thing.rotation = (Math.atan2(rotationTarget.y - position.y, rotationTarget.x - position.x))-(Math.PI/4) ;
 }
 
+
+function action(elapsedS: number, thing: Thing){
+  
+    if(thing.active){
+      switch(thing.variant){
+        case Variant.player:
+          const playerAttack = thing.attack;
+          playerAttack.elapsed += elapsedS;
+          break;
+        case Variant.enemy:
+          if(thing.hp <= 0){
+            thing.active = false;
+          }
+          
+          break;
+        case Variant.attack:
+          const attack = thing.attack;
+          if(attack.elapsed > attack.duration) {
+            thing.hp = 0;
+            thing.active = false;
+          }
+
+          things.forEach(otherThing => {
+            if(thing.id !== otherThing.id && collisionDetector(thing, thing.position, otherThing)){ // TODO: Can collision detection be unified?
+              if(thing.targetCollisionLayer.intersection(otherThing.collisionLayer).size){
+                otherThing.hp -= attack.damage;
+              }
+            }
+
+          })
+          break;
+      }
+    }
+
+
+}
+
 function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number) {
   const elapsed = timestamp - prevTime;
   const elapsedS = elapsed / 1000;
   if(!paused){
+
+    things.forEach(thing => {
+      action(elapsedS, thing);
+    });
+
     //CALCULATIONS AND PHYSICS
     processPlayerInput();
     moveThings(elapsedS, player);
@@ -446,8 +527,10 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number)
     const displace = playerZoneDisplace();
     for(let idx = 1; idx < (things.length); idx++){
       const thing = things[idx];
-      if(thing.moving) moveThings(elapsedS, thing);
-      rotatospotatos(thing, thing.position, thing.rotationTarget);
+      if (thing.active){
+        if(thing.moving) moveThings(elapsedS, thing);
+        rotatospotatos(thing, thing.position, thing.rotationTarget);
+      }
     };
 
 
@@ -480,7 +563,6 @@ function addEL(canvas: HTMLCanvasElement) {
     }
   })); 
   canvas.addEventListener("mouseup", (event => {
-    console.log(event);
     switch(event.button){
       case 0:
         activeKeys.delete("ML");
@@ -490,8 +572,8 @@ function addEL(canvas: HTMLCanvasElement) {
         break;
     }
 
-    const attack = { ...player.attack, position: {x: player.position.x + 25, y: player.position.y + 25}, targetPosition: {x: player.position.x + 25, y: player.position.y + 25}};
-    things.push(createAttack(attack));
+    //const attack = { ...player.attack, position: {x: player.position.x + 25, y: player.position.y + 25}, targetPosition: {x: player.position.x + 25, y: player.position.y + 25}};
+    //things.push(createAttack(attack));
   }));
 
   canvas.addEventListener("contextmenu", (event => {
