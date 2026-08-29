@@ -97,7 +97,7 @@ type Zone = {
 
 let GLOBALID = 1;
 
-const INITTHINGSNOTPLAYER = 2;
+const INITTHINGSNOTPLAYER = 101;
 
 const defaultZoneSize = {h: 720, w: 1280};
 
