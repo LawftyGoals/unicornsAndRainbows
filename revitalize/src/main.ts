@@ -156,7 +156,54 @@ function createAttack(attack: Attack): Thing{
 
 }
 
-const player: Thing = {
+
+const defaultPlayer: Thing = {
+  id: 0,
+  active: true,
+  variant: Variant.player,
+  hp: 500,
+  maxHp: 500,
+  attack: {
+    elapsed: 100, 
+    damage: 100, 
+    cooldown: 1, 
+    duration: 0.3, 
+    ammunition: Infinity, 
+    speed: 600, 
+    moving: true, 
+    position: {} as Position, 
+    size: {w: 60, h: 60, halfSizeW: 30, halfSizeH: 30}, 
+    collisionLayer: new Set([3]), 
+    targetCollisionLayer: new Set([1]), 
+    color: "rgba(10, 32, 255, 0.3)", 
+    targetPosition: {} as Position, 
+    rotationTarget: {} as Position, 
+    rotation: 0, 
+    innerRange: 0, 
+    outerRange: 60,
+    thingAttacked: new Set()
+  },
+  speed: 300,
+  slowed: 0,
+  moving: false,
+  position: {
+    x: defaultZoneSize.w / 2,
+    y: defaultZoneSize.h / 2,
+  },
+  collisionLayer: new Set([0]),
+  targetCollisionLayer: new Set([1]),
+  nmx: 0,
+  nmy: 0,
+  distanceX: 0,
+  distanceY: 0,
+  size: {h: 30, w: 30, halfSizeH: 15, halfSizeW: 15},
+  color: "red",
+  targetPosition:  {x: defaultZoneSize.w / 2, y: defaultZoneSize.h /2},
+  rotationTarget: mousePosition,
+  rotation: 0,
+};
+
+let player: Thing = {
   id: 0,
   active: true,
   variant: Variant.player,
@@ -531,13 +578,22 @@ function rotatospotatos(thing: Thing, position: Position, rotationTarget: Positi
 
 
 function action(elapsedS: number, thing: Thing, thingIdx: number){
-  
+   
   if(thing.active){
+
     switch(thing.variant){
       case Variant.player:
+        //TODO: See if this can be optimized
         const playerAttack = thing.attack;
         playerAttack.elapsed += elapsedS;
         getDebug(`${player.hp}`);
+        if(player.hp <= 0){
+          player.active = false;
+          paused = true;
+          getDebug(`${"You have been moiderd."}`);
+
+          
+        }
         break;
       case Variant.enemy:
         if(thing.hp <= 0){
@@ -615,7 +671,7 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number)
     };
   }
 
-  requestAnimationFrame((ts) => run(ctx, timestamp, ts));
+  if(player.active)requestAnimationFrame((ts) => run(ctx, timestamp, ts));
 }
 
 function addEL(canvas: HTMLCanvasElement) {
@@ -666,8 +722,12 @@ function addEL(canvas: HTMLCanvasElement) {
   addEventListener("keyup", (event) => {
     switch (event.code){
       case 'KeyP':
-        paused = !paused;
-      break;
+        if(player.active) paused = !paused;
+        break;
+      case 'KeyR':
+        console.log(event);
+        if(!player.active) init();
+        break;
     }
     activeKeys.delete(event.code);
     if(activeKeys.size < 1) player.moving = false;
@@ -677,19 +737,21 @@ function addEL(canvas: HTMLCanvasElement) {
 
 function init() {
   const canvas = gEI("cv") as HTMLCanvasElement | null;
-  if (!canvas) return 0;
+  paused = false;
+  if (!canvas) return 1;
   const ctx = canvas.getContext("2d");
   addEL(canvas);
   if (!ctx) {
     console.error(
       "Canvas could not be found or context could not be initialized",
     );
-    return 0;
+    return 1;
   }
 
   randomThingCreator(INITTHINGSNOTPLAYER);
 
   requestAnimationFrame((timestamp) => run(ctx, 0, timestamp));
+  return 0;
 }
 
 init();
