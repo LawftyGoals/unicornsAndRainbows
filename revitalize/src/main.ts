@@ -96,7 +96,7 @@ type Zone = {
 
 let GLOBALID = 1;
 
-const INITTHINGSNOTPLAYER = 10;
+const INITTHINGSNOTPLAYER = 1000;
 
 const defaultZoneSize = {h: 720, w: 1280};
 
@@ -161,7 +161,7 @@ const player: Thing = {
   variant: Variant.player,
   hp: 500,
   maxHp: 500,
-  attack: {elapsed: 10, damage: 10, cooldown: 1, duration: 0.3, ammunition: Infinity, speed: 600, moving: true, position: {} as Position, size: {w: 60, h: 60, halfSizeW: 30, halfSizeH: 30}, collisionLayer: new Set([3]), targetCollisionLayer: new Set([1]), color: "rgba(10, 32, 255, 0.3)", targetPosition: {} as Position, rotationTarget: {} as Position, rotation: 0, innerRange: 0, outerRange: 60},
+  attack: {elapsed: 10, damage: 100, cooldown: 1, duration: 0.3, ammunition: Infinity, speed: 600, moving: true, position: {} as Position, size: {w: 60, h: 60, halfSizeW: 30, halfSizeH: 30}, collisionLayer: new Set([3]), targetCollisionLayer: new Set([1]), color: "rgba(10, 32, 255, 0.3)", targetPosition: {} as Position, rotationTarget: {} as Position, rotation: 0, innerRange: 0, outerRange: 60},
   speed: 300,
   slowed: 0,
   moving: false,
@@ -187,7 +187,7 @@ const player: Thing = {
 const things = [player];
 
 
-function swapWithLast(idx: number){
+function swapWithLastAndPop(idx: number){
   if(idx !== things.length - 1){
     const lastThing = things[things.length - 1];
     things[idx] = lastThing;
@@ -474,38 +474,40 @@ function rotatospotatos(thing: Thing, position: Position, rotationTarget: Positi
 }
 
 
-function action(elapsedS: number, thing: Thing){
+function action(elapsedS: number, thing: Thing, thingIdx: number){
   
-    if(thing.active){
-      switch(thing.variant){
-        case Variant.player:
-          const playerAttack = thing.attack;
-          playerAttack.elapsed += elapsedS;
-          break;
-        case Variant.enemy:
-          if(thing.hp <= 0){
-            thing.active = false;
-          }
-          
-          break;
-        case Variant.attack:
-          const attack = thing.attack;
-          if(attack.elapsed > attack.duration) {
-            thing.hp = 0;
-            thing.active = false;
-          }
+  if(thing.active){
+    switch(thing.variant){
+      case Variant.player:
+        const playerAttack = thing.attack;
+        playerAttack.elapsed += elapsedS;
+        break;
+      case Variant.enemy:
+        if(thing.hp <= 0){
+          thing.active = false;
+        }
+        
+        break;
+      case Variant.attack:
+        const attack = thing.attack;
+        if(attack.elapsed > attack.duration) {
+          thing.hp = 0;
+          thing.active = false;
+        }
 
-          things.forEach(otherThing => {
-            if(thing.id !== otherThing.id && collisionDetector(thing, thing.position, otherThing)){ // TODO: Can collision detection be unified?
-              if(thing.targetCollisionLayer.intersection(otherThing.collisionLayer).size){
-                otherThing.hp -= attack.damage;
-              }
+        things.forEach(otherThing => {
+          if(thing.id !== otherThing.id && collisionDetector(thing, thing.position, otherThing)){ // TODO: Can collision detection be unified?
+            if(thing.targetCollisionLayer.intersection(otherThing.collisionLayer).size){
+              otherThing.hp -= attack.damage;
             }
+          }
 
-          })
-          break;
-      }
+        })
+        break;
     }
+  } else {
+    swapWithLastAndPop(thingIdx);
+  }
 
 
 }
@@ -515,8 +517,8 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number)
   const elapsedS = elapsed / 1000;
   if(!paused){
 
-    things.forEach(thing => {
-      action(elapsedS, thing);
+    things.forEach((thing, idx) => {
+      action(elapsedS, thing, idx);
     });
 
     //CALCULATIONS AND PHYSICS
