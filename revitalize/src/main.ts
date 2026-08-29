@@ -60,6 +60,7 @@ type Attack = {
   rotation: number,
   innerRange: number,
   outerRange: number,
+  thingAttacked: Set<Thing>,
 
 
 }
@@ -96,7 +97,7 @@ type Zone = {
 
 let GLOBALID = 1;
 
-const INITTHINGSNOTPLAYER = 1000;
+const INITTHINGSNOTPLAYER = 2;
 
 const defaultZoneSize = {h: 720, w: 1280};
 
@@ -161,7 +162,26 @@ const player: Thing = {
   variant: Variant.player,
   hp: 500,
   maxHp: 500,
-  attack: {elapsed: 10, damage: 100, cooldown: 1, duration: 0.3, ammunition: Infinity, speed: 600, moving: true, position: {} as Position, size: {w: 60, h: 60, halfSizeW: 30, halfSizeH: 30}, collisionLayer: new Set([3]), targetCollisionLayer: new Set([1]), color: "rgba(10, 32, 255, 0.3)", targetPosition: {} as Position, rotationTarget: {} as Position, rotation: 0, innerRange: 0, outerRange: 60},
+  attack: {
+    elapsed: 100, 
+    damage: 100, 
+    cooldown: 1, 
+    duration: 0.3, 
+    ammunition: Infinity, 
+    speed: 600, 
+    moving: true, 
+    position: {} as Position, 
+    size: {w: 60, h: 60, halfSizeW: 30, halfSizeH: 30}, 
+    collisionLayer: new Set([3]), 
+    targetCollisionLayer: new Set([1]), 
+    color: "rgba(10, 32, 255, 0.3)", 
+    targetPosition: {} as Position, 
+    rotationTarget: {} as Position, 
+    rotation: 0, 
+    innerRange: 0, 
+    outerRange: 60,
+    thingAttacked: new Set()
+  },
   speed: 300,
   slowed: 0,
   moving: false,
@@ -205,7 +225,31 @@ function randomThingCreator(count: number){
         variant: Variant.enemy,
         hp: 50,
         maxHp: 50,
-        attack: { elapsed: 0, damage: 10, cooldown: 5, duration: 1, ammunition: Infinity, speed: 600, moving: true, position: {} as Position, size: {w: 20, h: 20, halfSizeW: 10, halfSizeH: 10}, collisionLayer: new Set([3]), targetCollisionLayer: new Set([1]), color: "darkslategray", targetPosition: {} as Position, rotationTarget: {} as Position, rotation: 0, innerRange: 0, outerRange: 40},
+        attack: { 
+          elapsed: 100, 
+          damage: 10, 
+          cooldown: 3, 
+          duration: 0.3, 
+          ammunition: Infinity, 
+          speed: 600, 
+          moving: true, 
+          position: {} as Position, 
+          size: {
+            w: 20, 
+            h: 20, 
+            halfSizeW: 10, 
+            halfSizeH: 10
+          }, 
+          collisionLayer: new Set([3]), 
+          targetCollisionLayer: new Set([0]), 
+          color: "darkslategray", 
+          targetPosition: {} as Position, 
+          rotationTarget: {} as Position, 
+          rotation: 0, 
+          innerRange: 0, 
+          outerRange: 40,
+          thingAttacked: new Set()
+        },
         speed: 200,
         slowed: 0,
         moving: true,
@@ -300,15 +344,18 @@ function processPlayerInput(){
   if(sH('ML')){
     if(player.attack.elapsed >= player.attack.cooldown){
       const {displaceX, displaceY} = playerZoneDisplace();
-      const {nmx, nmy} = normalizeMagnitude(player.position, true, {x: displaceX + mousePosition.x, y: displaceY + mousePosition.y});
-      const positionX = player.position.x + (nmx * (player.size.halfSizeW + player.attack.size.halfSizeW));
-      const positionY = player.position.y + (nmy * (player.size.halfSizeH + player.attack.size.halfSizeH));
-      const attack = {...player.attack, position: {x: positionX, y: positionY}};
-      player.attack.elapsed = 0;
-      things.push(createAttack(attack));
-
+      configureAttack(player, displaceX, displaceY, mousePosition);
     }
   }
+}
+
+function configureAttack(thing:Thing, displaceX:number, displaceY:number, targetPosition: Position){
+      const {nmx, nmy} = normalizeMagnitude(thing.position, true, {x: displaceX + targetPosition.x, y: displaceY + targetPosition.y});
+      const positionX = thing.position.x + (nmx * (thing.size.halfSizeW + thing.attack.size.halfSizeW));
+      const positionY = thing.position.y + (nmy * (thing.size.halfSizeH + thing.attack.size.halfSizeH));
+      const attack = {...thing.attack, position: {x: positionX, y: positionY}};
+      thing.attack.elapsed = 0;
+      things.push(createAttack(attack));
 }
 
 type Edges = {
@@ -327,10 +374,19 @@ function getEdges(position: Position, size: Size): Edges{
   }
 }
 
-function normalizeMagnitude(position: Position, moving: boolean, targetPosition: Position){
+function getMagnitudeXY(position: Position, moving: boolean, targetPosition: Position){
+
   const omx = moving ? (targetPosition.x - position.x) : 0;
   const omy = moving ? (targetPosition.y - position.y) : 0;
 
+  return Math.sqrt(omx * omx + omy * omy);
+}
+
+
+function normalizeMagnitude(position: Position, moving: boolean, targetPosition: Position){
+  const omx = moving ? (targetPosition.x - position.x) : 0;
+  const omy = moving ? (targetPosition.y - position.y) : 0;
+  
   const magdeb = Math.sqrt(omx * omx + omy * omy);
 
   const nmx = magdeb >= 1 ? omx / magdeb : 0;
@@ -345,7 +401,7 @@ function getDistanceFromThing(elapsedS: number, thing: Thing, targetPosition: Po
   const velocityX = thing.speed * nmx * (1 - thing.slowed);
   const velocityY = thing.speed * nmy * (1 - thing.slowed);
 
-  return {x: velocityX * elapsedS, y: velocityY * elapsedS}
+  return {x: velocityX * elapsedS, y: velocityY * elapsedS};
 }
 
 
@@ -481,23 +537,34 @@ function action(elapsedS: number, thing: Thing, thingIdx: number){
       case Variant.player:
         const playerAttack = thing.attack;
         playerAttack.elapsed += elapsedS;
+        getDebug(`${player.hp}`);
         break;
       case Variant.enemy:
         if(thing.hp <= 0){
           thing.active = false;
+        } else {
+          const tAtk = thing.attack
+          tAtk.elapsed += elapsedS;
+          const distanceToPlayer = getMagnitudeXY(thing.position, thing.moving, thing.targetPosition);
+          if((distanceToPlayer - thing.size.halfSizeW - player.size.w < 5) && (tAtk.elapsed >= tAtk.cooldown)){
+            tAtk.elapsed = 0;
+            configureAttack(thing, 0, 0, thing.targetPosition);
+          }
         }
         
         break;
       case Variant.attack:
         const attack = thing.attack;
+        attack.elapsed += elapsedS;
         if(attack.elapsed > attack.duration) {
           thing.hp = 0;
           thing.active = false;
         }
 
         things.forEach(otherThing => {
-          if(thing.id !== otherThing.id && collisionDetector(thing, thing.position, otherThing)){ // TODO: Can collision detection be unified?
+          if(thing.id !== otherThing.id && collisionDetector(thing, thing.position, otherThing) && !attack.thingAttacked.has(otherThing)){ // TODO: Can collision detection be unified?
             if(thing.targetCollisionLayer.intersection(otherThing.collisionLayer).size){
+              attack.thingAttacked.add(otherThing);
               otherThing.hp -= attack.damage;
             }
           }
