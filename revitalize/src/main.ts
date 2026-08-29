@@ -487,7 +487,7 @@ function moveAndCollide(elapsedS: number, thing: Thing){
       if(barrierCol.collT || barrierCol.collB){
         distanceY = 0;
       }
-      if(barrierCol.collL && barrierCol.collR){
+      if(barrierCol.collL || barrierCol.collR){
         distanceX = 0;
       }
 
