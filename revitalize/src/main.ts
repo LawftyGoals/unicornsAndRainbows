@@ -34,11 +34,6 @@ const Variant = {
   attack: 3
 };
 
-const State = {
-  moving: 0,
-  still: 1,
-  attacking: 2,
-}
 
 type VariantKey = keyof typeof Variant;
 
@@ -97,7 +92,7 @@ type Zone = {
 
 let GLOBALID = 1;
 
-const INITTHINGSNOTPLAYER = 101;
+const INITTHINGSNOTPLAYER = 100;
 
 const defaultZoneSize = {h: 720, w: 1280};
 
@@ -128,6 +123,8 @@ const mousePosition = { x: defaultZoneSize.w/2, y: defaultZoneSize.h/2 };
 */
 
 function createAttack(attack: Attack): Thing{
+  const newAttack = {...attack, thingAttacked: new Set<Thing>()}
+
   
   GLOBALID++;
   return {
@@ -136,28 +133,75 @@ function createAttack(attack: Attack): Thing{
     variant: Variant.attack,
     hp: 1,
     maxHp: 0,
-    attack: attack,
+    attack: newAttack,
     speed: 0,
     slowed: 0,
-    moving: attack.moving,
-    position: attack.position,
+    moving: newAttack.moving,
+    position: newAttack.position,
     distanceX: 0,
     distanceY: 0,
     nmx: 0,
     nmy: 0,
-    size: attack.size,
-    collisionLayer: new Set(attack.collisionLayer),
-    targetCollisionLayer: new Set(attack.targetCollisionLayer),
-    color: attack.color,
-    targetPosition: attack.targetPosition,
-    rotationTarget: attack.rotationTarget,
-    rotation: attack.rotation,
+    size: newAttack.size,
+    collisionLayer: new Set(newAttack.collisionLayer),
+    targetCollisionLayer: new Set(newAttack.targetCollisionLayer),
+    color: newAttack.color,
+    targetPosition: newAttack.targetPosition,
+    rotationTarget: newAttack.rotationTarget,
+    rotation: newAttack.rotation,
   };
 
 }
 
+function createPlayer(): Thing {
+  return {
+    id: 0,
+    active: true,
+    variant: Variant.player,
+    hp: 500,
+    maxHp: 500,
+    attack: {
+      elapsed: 100, 
+      damage: 100, 
+      cooldown: 1, 
+      duration: 0.3, 
+      ammunition: Infinity, 
+      speed: 600, 
+      moving: true, 
+      position: {} as Position, 
+      size: {w: 60, h: 60, halfSizeW: 30, halfSizeH: 30}, 
+      collisionLayer: new Set([3]), 
+      targetCollisionLayer: new Set([1]), 
+      color: "rgba(10, 32, 255, 0.3)", 
+      targetPosition: {} as Position, 
+      rotationTarget: {} as Position, 
+      rotation: 0, 
+      innerRange: 0, 
+      outerRange: 60,
+      thingAttacked: new Set()
+    },
+    speed: 300,
+    slowed: 0,
+    moving: false,
+    position: {
+      x: defaultZoneSize.w / 2,
+      y: defaultZoneSize.h / 2,
+    },
+    collisionLayer: new Set([0]),
+    targetCollisionLayer: new Set([1]),
+    nmx: 0,
+    nmy: 0,
+    distanceX: 0,
+    distanceY: 0,
+    size: {h: 30, w: 30, halfSizeH: 15, halfSizeW: 15},
+    color: "red",
+    targetPosition:  {x: defaultZoneSize.w / 2, y: defaultZoneSize.h /2},
+    rotationTarget: mousePosition,
+    rotation: 0,
+  };
+}
 
-const defaultPlayer: Thing = {
+let globalPlayer: Thing = {
   id: 0,
   active: true,
   variant: Variant.player,
@@ -203,58 +247,10 @@ const defaultPlayer: Thing = {
   rotation: 0,
 };
 
-let player: Thing = {
-  id: 0,
-  active: true,
-  variant: Variant.player,
-  hp: 500,
-  maxHp: 500,
-  attack: {
-    elapsed: 100, 
-    damage: 100, 
-    cooldown: 1, 
-    duration: 0.3, 
-    ammunition: Infinity, 
-    speed: 600, 
-    moving: true, 
-    position: {} as Position, 
-    size: {w: 60, h: 60, halfSizeW: 30, halfSizeH: 30}, 
-    collisionLayer: new Set([3]), 
-    targetCollisionLayer: new Set([1]), 
-    color: "rgba(10, 32, 255, 0.3)", 
-    targetPosition: {} as Position, 
-    rotationTarget: {} as Position, 
-    rotation: 0, 
-    innerRange: 0, 
-    outerRange: 60,
-    thingAttacked: new Set()
-  },
-  speed: 300,
-  slowed: 0,
-  moving: false,
-  position: {
-    x: defaultZoneSize.w / 2,
-    y: defaultZoneSize.h / 2,
-  },
-  collisionLayer: new Set([0]),
-  targetCollisionLayer: new Set([1]),
-  nmx: 0,
-  nmy: 0,
-  distanceX: 0,
-  distanceY: 0,
-  size: {h: 30, w: 30, halfSizeH: 15, halfSizeW: 15},
-  color: "red",
-  targetPosition:  {x: defaultZoneSize.w / 2, y: defaultZoneSize.h /2},
-  rotationTarget: mousePosition,
-  rotation: 0,
-};
 
+//const globalThings = [globalPlayer];
 
-
-const things = [player];
-
-
-function swapWithLastAndPop(idx: number){
+function swapWithLastAndPop(things: Thing[], idx: number){
   if(idx !== things.length - 1){
     const lastThing = things[things.length - 1];
     things[idx] = lastThing;
@@ -262,10 +258,10 @@ function swapWithLastAndPop(idx: number){
   things.pop();
 }
 
-function randomThingCreator(count: number){
-  for(let i = 1; i < count; i++){
+function randomThingCreator(things: Thing[], count: number, playerTarget: Thing){
+  for(let i = 1; i < count+1; i++){
     GLOBALID++;
-    things[i] = (
+    things.push(
       {
         id: GLOBALID,
         active: true,
@@ -309,8 +305,8 @@ function randomThingCreator(count: number){
         collisionLayer: new Set([1]),
         targetCollisionLayer: new Set([0, 1]),
         color: `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`,
-        targetPosition: player.position,
-        rotationTarget: player.position,
+        targetPosition: playerTarget.position,
+        rotationTarget: playerTarget.position,
         rotation: 0,
       }
     )
@@ -323,7 +319,7 @@ function gEI(id: string) {
   return document.getElementById(id);
 }
 
-function playerZoneDisplace(){
+function playerZoneDisplace(player: Thing){
   return {displaceX: (player.position.x - defaultZoneSize.w/2), displaceY: (player.position.y - defaultZoneSize.h/2)};
 }
 
@@ -355,11 +351,12 @@ function positionZoneConverter({x, y}: Position){
 
 function drawBg(
   ctx: CanvasRenderingContext2D,
-  zone: Zone 
+  zone: Zone,
+  player: Thing
 ){
   const {position, size: {h, w}, color} = zone;
   const {x, y} = positionZoneConverter(position);
-  const {displaceX, displaceY} = playerZoneDisplace();
+  const {displaceX, displaceY} = playerZoneDisplace(player);
   ctx.fillStyle = color;
   ctx.translate(x - displaceX, y - displaceY);
   ctx.fillRect(0, 0, w, h);
@@ -371,7 +368,8 @@ function sH(keyCode: string) {
   return activeKeys.has(keyCode);
 }
 
-function processPlayerInput(){
+
+function processPlayerInput(player: Thing, things: Thing[]){
   if(sH('KeyA')) {
     //A
     player.targetPosition.x = player.position.x - 10;
@@ -390,13 +388,13 @@ function processPlayerInput(){
   }
   if(sH('ML')){
     if(player.attack.elapsed >= player.attack.cooldown){
-      const {displaceX, displaceY} = playerZoneDisplace();
-      configureAttack(player, displaceX, displaceY, mousePosition);
+      const {displaceX, displaceY} = playerZoneDisplace(player);
+      configureAttack(things, player, displaceX, displaceY, mousePosition);
     }
   }
 }
 
-function configureAttack(thing:Thing, displaceX:number, displaceY:number, targetPosition: Position){
+function configureAttack(things: Thing[], thing:Thing, displaceX:number, displaceY:number, targetPosition: Position){
       const {nmx, nmy} = normalizeMagnitude(thing.position, true, {x: displaceX + targetPosition.x, y: displaceY + targetPosition.y});
       const positionX = thing.position.x + (nmx * (thing.size.halfSizeW + thing.attack.size.halfSizeW));
       const positionY = thing.position.y + (nmy * (thing.size.halfSizeH + thing.attack.size.halfSizeH));
@@ -472,7 +470,7 @@ function detectBarrierCollision(thingA: Thing, thingANewPos: Position){
 
 
 
-function moveAndCollide(elapsedS: number, thing: Thing){
+function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
 
   let distanceX = 0;
   let distanceY = 0;
@@ -519,8 +517,12 @@ function moveAndCollide(elapsedS: number, thing: Thing){
               distanceY = -dist.y;
             }
             if(thing.variant === Variant.player){
-              otherThing.position.x += distanceX*(4);
-              otherThing.position.y += distanceY*(4);
+              if(distanceX > distanceY){
+                otherThing.position.x += distanceX*2
+              }
+              else {
+                otherThing.position.y += distanceY*2;
+              }
             }
             break;
         }
@@ -558,12 +560,12 @@ function moveAndCollide(elapsedS: number, thing: Thing){
 
   return {distanceX, distanceY};
 
-
+ 
 }
 
-function moveThings(elapsedS: number, thing: Thing) {
+function moveThings(elapsedS: number, thing: Thing, things: Thing[]) {
   if(thing.active){
-    const {distanceX, distanceY} = moveAndCollide(elapsedS, thing);
+    const {distanceX, distanceY} = moveAndCollide(elapsedS, thing, things);
     thing.position.x += distanceX;
     thing.position.y += distanceY;
     thing.distanceX = distanceX;
@@ -576,23 +578,18 @@ function rotatospotatos(thing: Thing, position: Position, rotationTarget: Positi
   thing.rotation = (Math.atan2(rotationTarget.y - position.y, rotationTarget.x - position.x))-(Math.PI/4) ;
 }
 
-
-function action(elapsedS: number, thing: Thing, thingIdx: number){
+function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: number){
    
   if(thing.active){
-
     switch(thing.variant){
       case Variant.player:
         //TODO: See if this can be optimized
         const playerAttack = thing.attack;
         playerAttack.elapsed += elapsedS;
-        getDebug(`${player.hp}`);
-        if(player.hp <= 0){
-          player.active = false;
+        if(thing.hp <= 0){
+          thing.active = false;
           paused = true;
           getDebug(`${"You have been moiderd."}`);
-
-          
         }
         break;
       case Variant.enemy:
@@ -602,9 +599,9 @@ function action(elapsedS: number, thing: Thing, thingIdx: number){
           const tAtk = thing.attack
           tAtk.elapsed += elapsedS;
           const distanceToPlayer = getMagnitudeXY(thing.position, thing.moving, thing.targetPosition);
-          if((distanceToPlayer - thing.size.halfSizeW - player.size.w < 5) && (tAtk.elapsed >= tAtk.cooldown)){
+          if((distanceToPlayer - thing.size.halfSizeW - globalPlayer.size.w < 3) && (tAtk.elapsed >= tAtk.cooldown)){
             tAtk.elapsed = 0;
-            configureAttack(thing, 0, 0, thing.targetPosition);
+            configureAttack(things, thing, 0, 0, thing.targetPosition);
           }
         }
         
@@ -618,8 +615,12 @@ function action(elapsedS: number, thing: Thing, thingIdx: number){
         }
 
         things.forEach(otherThing => {
-          if(thing.id !== otherThing.id && collisionDetector(thing, thing.position, otherThing) && !attack.thingAttacked.has(otherThing)){ // TODO: Can collision detection be unified?
-            if(thing.targetCollisionLayer.intersection(otherThing.collisionLayer).size){
+          if(
+            thing.id !== otherThing.id 
+          && collisionDetector(thing, thing.position, otherThing) 
+          && !(attack.thingAttacked.has(otherThing))){ // TODO: Can collision detection be unified?
+            
+            if((thing.targetCollisionLayer.intersection(otherThing.collisionLayer)).size){
               attack.thingAttacked.add(otherThing);
               otherThing.hp -= attack.damage;
             }
@@ -629,31 +630,51 @@ function action(elapsedS: number, thing: Thing, thingIdx: number){
         break;
     }
   } else {
-    swapWithLastAndPop(thingIdx);
+    swapWithLastAndPop(things, thingIdx);
   }
+}
+
+function renderUI(ctx: CanvasRenderingContext2D, player: Thing){
+  const maxHP = player.maxHp;
+  const hp = player.hp;
+  const percentage = hp / maxHP;
+
+  const gradient = ctx.createLinearGradient(0, 20, 0, 40);
+
+  gradient.addColorStop(0, "red");
+  gradient.addColorStop(0.16, "orange");
+  gradient.addColorStop(0.32, "yellow");
+  gradient.addColorStop(0.48, "green");
+  gradient.addColorStop(0.64, "blue");
+  gradient.addColorStop(0.80, "indigo");
+  gradient.addColorStop(1, "violet");
+  
+  ctx.fillStyle = gradient;
+
+  ctx.fillRect(20, 20, 200*percentage, 20)
 
 
 }
 
-function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number) {
+function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number, things: Thing[],player: Thing) {
   const elapsed = timestamp - prevTime;
   const elapsedS = elapsed / 1000;
   if(!paused){
 
     things.forEach((thing, idx) => {
-      action(elapsedS, thing, idx);
+      action(elapsedS, thing, things, idx);
     });
 
     //CALCULATIONS AND PHYSICS
-    processPlayerInput();
-    moveThings(elapsedS, player);
+    processPlayerInput(player, things);
+    moveThings(elapsedS, player, things);
     rotatospotatos(player, playerCentered, player.rotationTarget);
 
-    const displace = playerZoneDisplace();
+    const displace = playerZoneDisplace(player);
     for(let idx = 1; idx < (things.length); idx++){
       const thing = things[idx];
       if (thing.active){
-        if(thing.moving) moveThings(elapsedS, thing);
+        if(thing.moving) moveThings(elapsedS, thing, things);
         rotatospotatos(thing, thing.position, thing.rotationTarget);
       }
     };
@@ -662,19 +683,21 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number)
     //RENDER
     ctx.clearRect(0,0, defaultZoneSize.w, defaultZoneSize.h);
     map.forEach((zone)=> {
-      drawBg(ctx, zone);
+      drawBg(ctx, zone, player);
     });
     drawThing(ctx, player, playerCentered, {displaceX: 0, displaceY: 0});
     for(let idx = 1; idx < (things.length); idx++){
       const thing = things[idx];
       drawThing(ctx, thing, thing.position, displace);
     };
+
+    renderUI(ctx, player);
   }
 
-  if(player.active)requestAnimationFrame((ts) => run(ctx, timestamp, ts));
+  if(player.active)requestAnimationFrame((ts) => run(ctx, timestamp, ts, things, player));
 }
 
-function addEL(canvas: HTMLCanvasElement) {
+function addEL(canvas: HTMLCanvasElement, player: Thing) {
 
   const canvasRect = canvas.getClientRects()[0];
   canvas.addEventListener("mousedown", (event => {
@@ -697,8 +720,6 @@ function addEL(canvas: HTMLCanvasElement) {
         break;
     }
 
-    //const attack = { ...player.attack, position: {x: player.position.x + 25, y: player.position.y + 25}, targetPosition: {x: player.position.x + 25, y: player.position.y + 25}};
-    //things.push(createAttack(attack));
   }));
 
   canvas.addEventListener("contextmenu", (event => {
@@ -725,8 +746,7 @@ function addEL(canvas: HTMLCanvasElement) {
         if(player.active) paused = !paused;
         break;
       case 'KeyR':
-        console.log(event);
-        if(!player.active) init();
+        if(!player.active) init(false);
         break;
     }
     activeKeys.delete(event.code);
@@ -735,23 +755,25 @@ function addEL(canvas: HTMLCanvasElement) {
 }
 
 
-function init() {
+function init(pause: boolean) {
   const canvas = gEI("cv") as HTMLCanvasElement | null;
-  paused = false;
   if (!canvas) return 1;
   const ctx = canvas.getContext("2d");
-  addEL(canvas);
   if (!ctx) {
     console.error(
       "Canvas could not be found or context could not be initialized",
     );
     return 1;
   }
+  const player = createPlayer();
+  const things = [player];
+  paused = pause;
 
-  randomThingCreator(INITTHINGSNOTPLAYER);
+  addEL(canvas, player);
+  randomThingCreator(things, INITTHINGSNOTPLAYER, player);
 
-  requestAnimationFrame((timestamp) => run(ctx, 0, timestamp));
+  requestAnimationFrame((timestamp) => run(ctx, 0, timestamp, things, player));
   return 0;
 }
 
-init();
+init(true);
