@@ -91,6 +91,7 @@ type Zone = {
 };
 
 let GLOBALID = 1;
+let RUNNING = true;
 
 const INITTHINGSNOTPLAYER = 100;
 
@@ -124,8 +125,6 @@ const mousePosition = { x: defaultZoneSize.w/2, y: defaultZoneSize.h/2 };
 
 function createAttack(attack: Attack): Thing{
   const newAttack = {...attack, thingAttacked: new Set<Thing>()}
-
-  
   GLOBALID++;
   return {
     id: GLOBALID,
@@ -368,24 +367,39 @@ function sH(keyCode: string) {
   return activeKeys.has(keyCode);
 }
 
+const movementKeys = new Set(['KeyA', 'KeyS', 'KeyD', 'KeyW']);
 
 function processPlayerInput(player: Thing, things: Thing[]){
-  if(sH('KeyA')) {
-    //A
-    player.targetPosition.x = player.position.x - 10;
+  if(activeKeys.intersection(movementKeys).size > 0){
+    player.moving = true;
+    if(sH('KeyA')) {
+      //A
+      player.targetPosition.x = player.position.x - 10;
+    }
+    if(sH('KeyD')) {
+      //D
+      player.targetPosition.x = player.position.x + 10;
+    }
+    if(sH('KeyS')) {
+      //S
+      player.targetPosition.y = player.position.y + 10;
+    }
+    if(sH('KeyW')) {
+      //W
+      player.targetPosition.y = player.position.y - 10;
+    }
+  } else {
+    player.moving = false;
   }
-  if(sH('KeyD')) {
-    //D
-    player.targetPosition.x = player.position.x + 10;
+
+  if(sH('KeyP')){
+    console.log("keyp")
+    if(player.active) paused = !paused;
+    activeKeys.delete('KeyP')
   }
-  if(sH('KeyS')) {
-    //S
-    player.targetPosition.y = player.position.y + 10;
-  }
-  if(sH('KeyW')) {
-    //W
-    player.targetPosition.y = player.position.y - 10;
-  }
+
+
+
   if(sH('ML')){
     if(player.attack.elapsed >= player.attack.cooldown){
       const {displaceX, displaceY} = playerZoneDisplace(player);
@@ -588,7 +602,7 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
         playerAttack.elapsed += elapsedS;
         if(thing.hp <= 0){
           thing.active = false;
-          paused = true;
+          RUNNING = false;
           getDebug(`${"You have been moiderd."}`);
         }
         break;
@@ -659,6 +673,7 @@ function renderUI(ctx: CanvasRenderingContext2D, player: Thing){
 function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number, things: Thing[],player: Thing) {
   const elapsed = timestamp - prevTime;
   const elapsedS = elapsed / 1000;
+  processPlayerInput(player, things);
   if(!paused){
 
     things.forEach((thing, idx) => {
@@ -666,7 +681,6 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number,
     });
 
     //CALCULATIONS AND PHYSICS
-    processPlayerInput(player, things);
     moveThings(elapsedS, player, things);
     rotatospotatos(player, playerCentered, player.rotationTarget);
 
@@ -694,10 +708,10 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number,
     renderUI(ctx, player);
   }
 
-  if(player.active)requestAnimationFrame((ts) => run(ctx, timestamp, ts, things, player));
+  if(RUNNING)requestAnimationFrame((ts) => run(ctx, timestamp, ts, things, player));
 }
 
-function addEL(canvas: HTMLCanvasElement, player: Thing) {
+function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D){
 
   const canvasRect = canvas.getClientRects()[0];
   canvas.addEventListener("mousedown", (event => {
@@ -710,6 +724,7 @@ function addEL(canvas: HTMLCanvasElement, player: Thing) {
         break;
     }
   })); 
+
   canvas.addEventListener("mouseup", (event => {
     switch(event.button){
       case 0:
@@ -719,13 +734,11 @@ function addEL(canvas: HTMLCanvasElement, player: Thing) {
         activeKeys.delete("MR");
         break;
     }
-
   }));
 
   canvas.addEventListener("contextmenu", (event => {
     event.preventDefault();
   }));
-
 
   canvas.addEventListener("mousemove", (event) => {
     const x = Math.round(event.clientX - canvasRect.left);
@@ -734,28 +747,47 @@ function addEL(canvas: HTMLCanvasElement, player: Thing) {
     if((y >= 0) && (y <= defaultZoneSize.h)) mousePosition.y = y;
   });
 
-  const keyMaps = ['KeyA', 'KeyS', 'KeyD', 'KeyW'];
+  const keyMaps = new Set(['KeyA', 'KeyS', 'KeyD', 'KeyW']);
   addEventListener("keydown", (event) => {
-    if(keyMaps.includes(event.code))
+    if(keyMaps.has(event.code))
       activeKeys.add(event.code);
-    player.moving = true;
   });
   addEventListener("keyup", (event) => {
     switch (event.code){
-      case 'KeyP':
-        if(player.active) paused = !paused;
+      case 'KeyP': 
+
+        activeKeys.add(event.code);
         break;
       case 'KeyR':
-        if(!player.active) init(false);
+        if(!RUNNING){ 
+        //TODO: THIS DOESNT WORK
+          init(ctx, false);
+          getDebug("");
+        }
+        else {
+          getDebug("Press R again to restart game.");
+          RUNNING = false;
+        }
         break;
     }
-    activeKeys.delete(event.code);
-    if(activeKeys.size < 1) player.moving = false;
+    if(keyMaps.has(event.code)) activeKeys.delete(event.code);
   });
 }
 
 
-function init(pause: boolean) {
+function init(ctx: CanvasRenderingContext2D, pause: boolean) {
+  RUNNING = true;
+  const player = createPlayer();
+  const things = [player];
+  paused = pause;
+
+  randomThingCreator(things, INITTHINGSNOTPLAYER, player);
+
+  requestAnimationFrame((timestamp) => run(ctx, 0, timestamp, things, player));
+  return 0;
+}
+
+function config(){
   const canvas = gEI("cv") as HTMLCanvasElement | null;
   if (!canvas) return 1;
   const ctx = canvas.getContext("2d");
@@ -765,15 +797,10 @@ function init(pause: boolean) {
     );
     return 1;
   }
-  const player = createPlayer();
-  const things = [player];
-  paused = pause;
+  addEL(canvas, ctx);
 
-  addEL(canvas, player);
-  randomThingCreator(things, INITTHINGSNOTPLAYER, player);
-
-  requestAnimationFrame((timestamp) => run(ctx, 0, timestamp, things, player));
-  return 0;
+  init(ctx, true);
+  
 }
 
-init(true);
+config();
