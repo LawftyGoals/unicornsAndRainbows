@@ -27,7 +27,7 @@ type BgSize = {
 };
 
 
-const Variant = {
+const EnumThingVariant = {
   player: 0,
   enemy: 1,
   wall: 2,
@@ -35,12 +35,15 @@ const Variant = {
 };
 
 
-type VariantKey = keyof typeof Variant;
+type ThingVariantKey = keyof typeof EnumThingVariant;
+type ThingVariant = typeof EnumThingVariant[ThingVariantKey];
 
 type Attack = {
+  variant: ThingVariant,
   damage: number,
   elapsed: number,
   cooldown: number,
+  leadUp: number,
   duration: number,
   ammunition: number,
   speed: number,
@@ -56,14 +59,22 @@ type Attack = {
   innerRange: number,
   outerRange: number,
   thingAttacked: Set<Thing>,
-
-
 }
+
+
+const EnumAttackVariant = {
+  melee: 0,
+  ranged: 1
+}
+
+type AttackVariantKey = keyof typeof EnumAttackVariant;
+type AttackVariant = typeof EnumAttackVariant[AttackVariantKey];
+  
 
 type Thing = {
   id: number,
   active: boolean,
-  variant: typeof Variant[VariantKey], 
+  variant: ThingVariant,
   hp: number,
   maxHp: number,
   attack: Attack,
@@ -123,13 +134,15 @@ const mousePosition = { x: defaultZoneSize.w/2, y: defaultZoneSize.h/2 };
 * 2 - base enemy
 */
 
-function createAttack(attack: Attack): Thing{
-  const newAttack = {...attack, thingAttacked: new Set<Thing>()}
+function createAttack(newAttack: Attack, variant: AttackVariant): Thing{
+  newAttack.thingAttacked.clear();
+
+  
   GLOBALID++;
   return {
     id: GLOBALID,
     active: true,
-    variant: Variant.attack,
+    variant: EnumThingVariant.attack,
     hp: 1,
     maxHp: 0,
     attack: newAttack,
@@ -156,13 +169,15 @@ function createPlayer(): Thing {
   return {
     id: 0,
     active: true,
-    variant: Variant.player,
+    variant: EnumThingVariant.player,
     hp: 500,
     maxHp: 500,
     attack: {
+      variant: EnumAttackVariant.melee,
       elapsed: 100, 
       damage: 100, 
       cooldown: 1, 
+      leadUp: 0,
       duration: 0.3, 
       ammunition: Infinity, 
       speed: 600, 
@@ -203,11 +218,13 @@ function createPlayer(): Thing {
 let globalPlayer: Thing = {
   id: 0,
   active: true,
-  variant: Variant.player,
+  variant: EnumThingVariant.player,
   hp: 500,
   maxHp: 500,
   attack: {
-    elapsed: 100, 
+    variant: EnumAttackVariant.melee,
+    elapsed: 100,
+    leadUp: 0,
     damage: 100, 
     cooldown: 1, 
     duration: 0.3, 
@@ -264,13 +281,15 @@ function randomThingCreator(things: Thing[], count: number, playerTarget: Thing)
       {
         id: GLOBALID,
         active: true,
-        variant: Variant.enemy,
+        variant: EnumThingVariant.enemy,
         hp: 50,
         maxHp: 50,
         attack: { 
+          variant: EnumAttackVariant.melee,
           elapsed: 100, 
           damage: 10, 
           cooldown: 3, 
+          leadUp: 0.5,
           duration: 0.3, 
           ammunition: Infinity, 
           speed: 600, 
@@ -414,7 +433,7 @@ function configureAttack(things: Thing[], thing:Thing, displaceX:number, displac
       const positionY = thing.position.y + (nmy * (thing.size.halfSizeH + thing.attack.size.halfSizeH));
       const attack = {...thing.attack, position: {x: positionX, y: positionY}};
       thing.attack.elapsed = 0;
-      things.push(createAttack(attack));
+      things.push(createAttack(attack, EnumAttackVariant.melee));
 }
 
 type Edges = {
@@ -511,7 +530,7 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
         const absX = Math.abs(dist.x);
         const absY = Math.abs(dist.y);
         switch(otherThing.variant){
-          case Variant.player:
+          case EnumThingVariant.player:
             //TODO: This needs to be moved to action. otherThing.slowed = 0.7;
             if(absX < 12 && absY < 12){
               distanceX = 0;
@@ -521,8 +540,8 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
               distanceY = -(distanceY*2);
             }
           break;
-          case Variant.enemy:
-            if(thing.variant === Variant.enemy){
+          case EnumThingVariant.enemy:
+            if(thing.variant === EnumThingVariant.enemy){
               if(absX < 0.5 && absY < 0.5){
                 dist.x = thing.size.w;
                 dist.y = thing.size.h;
@@ -530,7 +549,7 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
               distanceX = -dist.x;
               distanceY = -dist.y;
             }
-            if(thing.variant === Variant.player){
+            if(thing.variant === EnumThingVariant.player){
               if(distanceX > distanceY){
                 otherThing.position.x += distanceX*2
               }
@@ -546,7 +565,7 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
   const barrierCol = detectBarrierCollision(thing, {x:targetPositionX, y: targetPositionY });
 
   if(barrierCol.collision){
-    if(thing.variant === Variant.player){
+    if(thing.variant === EnumThingVariant.player){
       if(barrierCol.collT || barrierCol.collB){
         distanceY = 0;
       }
@@ -593,10 +612,9 @@ function rotatospotatos(thing: Thing, position: Position, rotationTarget: Positi
 }
 
 function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: number){
-   
   if(thing.active){
     switch(thing.variant){
-      case Variant.player:
+      case EnumThingVariant.player:
         //TODO: See if this can be optimized
         const playerAttack = thing.attack;
         playerAttack.elapsed += elapsedS;
@@ -606,21 +624,21 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
           getDebug(`${"You have been moiderd."}`);
         }
         break;
-      case Variant.enemy:
+      case EnumThingVariant.enemy:
         if(thing.hp <= 0){
           thing.active = false;
         } else {
           const tAtk = thing.attack
           tAtk.elapsed += elapsedS;
           const distanceToPlayer = getMagnitudeXY(thing.position, thing.moving, thing.targetPosition);
-          if((distanceToPlayer - thing.size.halfSizeW - globalPlayer.size.w < 3) && (tAtk.elapsed >= tAtk.cooldown)){
+          if(distanceToPlayer - thing.size.halfSizeW - globalPlayer.size.w < 3 && tAtk.elapsed >= (tAtk.cooldown + tAtk.leadUp)){
             tAtk.elapsed = 0;
             configureAttack(things, thing, 0, 0, thing.targetPosition);
           }
         }
         
         break;
-      case Variant.attack:
+      case EnumThingVariant.attack:
         const attack = thing.attack;
         attack.elapsed += elapsedS;
         if(attack.elapsed > attack.duration) {
@@ -633,7 +651,6 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
             thing.id !== otherThing.id 
           && collisionDetector(thing, thing.position, otherThing) 
           && !(attack.thingAttacked.has(otherThing))){ // TODO: Can collision detection be unified?
-            
             if((thing.targetCollisionLayer.intersection(otherThing.collisionLayer)).size){
               attack.thingAttacked.add(otherThing);
               otherThing.hp -= attack.damage;
