@@ -134,9 +134,8 @@ const mousePosition = { x: defaultZoneSize.w/2, y: defaultZoneSize.h/2 };
 * 2 - base enemy
 */
 
-function createAttack(newAttack: Attack, variant: AttackVariant): Thing{
+function createAttack(newAttack: Attack ): Thing{
   newAttack.thingAttacked.clear();
-
   
   GLOBALID++;
   return {
@@ -433,7 +432,7 @@ function configureAttack(things: Thing[], thing:Thing, displaceX:number, displac
       const positionY = thing.position.y + (nmy * (thing.size.halfSizeH + thing.attack.size.halfSizeH));
       const attack = {...thing.attack, position: {x: positionX, y: positionY}};
       thing.attack.elapsed = 0;
-      things.push(createAttack(attack, EnumAttackVariant.melee));
+      things.push(createAttack(attack));
 }
 
 type Edges = {
@@ -641,7 +640,7 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
       case EnumThingVariant.attack:
         const attack = thing.attack;
         attack.elapsed += elapsedS;
-        if(attack.elapsed > attack.duration) {
+        if(attack.variant === EnumAttackVariant.melee && attack.elapsed > attack.duration) {
           thing.hp = 0;
           thing.active = false;
         }
