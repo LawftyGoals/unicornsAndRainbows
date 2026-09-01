@@ -77,7 +77,7 @@ type Thing = {
   variant: ThingVariant,
   hp: number,
   maxHp: number,
-  attack: Attack,
+  attack: Attack[],
   speed: number,
   slowed: number,
   moving: boolean,
@@ -104,7 +104,7 @@ type Zone = {
 let GLOBALID = 1;
 let RUNNING = true;
 
-const INITTHINGSNOTPLAYER = 100;
+const INITTHINGSNOTPLAYER = 0;
 
 const defaultZoneSize = {h: 720, w: 1280};
 
@@ -144,8 +144,8 @@ function createAttack(newAttack: Attack ): Thing{
     variant: EnumThingVariant.attack,
     hp: 1,
     maxHp: 0,
-    attack: newAttack,
-    speed: 0,
+    attack: [newAttack],
+    speed: newAttack.speed,
     slowed: 0,
     moving: newAttack.moving,
     position: newAttack.position,
@@ -171,28 +171,53 @@ function createPlayer(): Thing {
     variant: EnumThingVariant.player,
     hp: 500,
     maxHp: 500,
-    attack: {
-      variant: EnumAttackVariant.melee,
-      elapsed: 100, 
-      damage: 100, 
-      cooldown: 1, 
-      leadUp: 0,
-      duration: 0.3, 
-      ammunition: Infinity, 
-      speed: 600, 
-      moving: true, 
-      position: {} as Position, 
-      size: {w: 60, h: 60, halfSizeW: 30, halfSizeH: 30}, 
-      collisionLayer: new Set([3]), 
-      targetCollisionLayer: new Set([1]), 
-      color: "rgba(10, 32, 255, 0.3)", 
-      targetPosition: {} as Position, 
-      rotationTarget: {} as Position, 
-      rotation: 0, 
-      innerRange: 0, 
-      outerRange: 60,
-      thingAttacked: new Set()
-    },
+    attack: [
+      {
+        variant: EnumAttackVariant.melee,
+        elapsed: 100, 
+        damage: 100, 
+        cooldown: 1, 
+        leadUp: 0,
+        duration: 0.3, 
+        ammunition: Infinity, 
+        speed: 600, 
+        moving: false, 
+        position: {} as Position, 
+        size: {w: 60, h: 60, halfSizeW: 30, halfSizeH: 30}, 
+        collisionLayer: new Set([3]), 
+        targetCollisionLayer: new Set([1]), 
+        color: "rgba(10, 32, 255, 0.3)", 
+        targetPosition: {} as Position, 
+        rotationTarget: {} as Position, 
+        rotation: 0, 
+        innerRange: 0, 
+        outerRange: 60,
+        thingAttacked: new Set()
+      },
+      {
+        variant: EnumAttackVariant.ranged,
+        elapsed: 100, 
+        damage: 20, 
+        cooldown: 0.3, 
+        leadUp: 0,
+        duration: Infinity, 
+        ammunition: 100, 
+        speed: 600, 
+        moving: true, 
+        position: {} as Position, 
+        size: {w: 10, h: 10, halfSizeW: 5, halfSizeH: 5}, 
+        collisionLayer: new Set([3]), 
+        targetCollisionLayer: new Set([1]), 
+        color: "rgba(244, 1, 32, 0.3)", 
+        targetPosition: {} as Position, 
+        rotationTarget: {} as Position, 
+        rotation: 0, 
+        innerRange: 0, 
+        outerRange: 60,
+        thingAttacked: new Set()
+      },
+
+    ],
     speed: 300,
     slowed: 0,
     moving: false,
@@ -220,7 +245,7 @@ let globalPlayer: Thing = {
   variant: EnumThingVariant.player,
   hp: 500,
   maxHp: 500,
-  attack: {
+  attack: [{
     variant: EnumAttackVariant.melee,
     elapsed: 100,
     leadUp: 0,
@@ -241,7 +266,7 @@ let globalPlayer: Thing = {
     innerRange: 0, 
     outerRange: 60,
     thingAttacked: new Set()
-  },
+  }],
   speed: 300,
   slowed: 0,
   moving: false,
@@ -283,7 +308,7 @@ function randomThingCreator(things: Thing[], count: number, playerTarget: Thing)
         variant: EnumThingVariant.enemy,
         hp: 50,
         maxHp: 50,
-        attack: { 
+        attack: [{ 
           variant: EnumAttackVariant.melee,
           elapsed: 100, 
           damage: 10, 
@@ -309,7 +334,7 @@ function randomThingCreator(things: Thing[], count: number, playerTarget: Thing)
           innerRange: 0, 
           outerRange: 40,
           thingAttacked: new Set()
-        },
+        }],
         speed: 200,
         slowed: 0,
         moving: true,
@@ -411,28 +436,39 @@ function processPlayerInput(player: Thing, things: Thing[]){
   }
 
   if(sH('KeyP')){
-    console.log("keyp")
     if(player.active) paused = !paused;
     activeKeys.delete('KeyP')
   }
-
-
-
   if(sH('ML')){
-    if(player.attack.elapsed >= player.attack.cooldown){
+    if(player.attack[0].elapsed >= player.attack[0].cooldown){
       const {displaceX, displaceY} = playerZoneDisplace(player);
-      configureAttack(things, player, displaceX, displaceY, mousePosition);
+      configureAttack(things, player, player.attack[0],  displaceX, displaceY, mousePosition);
+    }
+  }
+  if(sH('MR')){
+    if(player.attack[1].elapsed >= player.attack[1].cooldown){
+      const {displaceX, displaceY} = playerZoneDisplace(player);
+      configureAttack(things, player, player.attack[1],  displaceX, displaceY, {x:mousePosition.x + displaceX, y:mousePosition.y + displaceY});
     }
   }
 }
 
-function configureAttack(things: Thing[], thing:Thing, displaceX:number, displaceY:number, targetPosition: Position){
+function configureAttack(things: Thing[], thing:Thing, attackBase: Attack, displaceX:number, displaceY:number, targetPosition: Position){
+  switch(attackBase.variant){
+    case EnumAttackVariant.melee:
       const {nmx, nmy} = normalizeMagnitude(thing.position, true, {x: displaceX + targetPosition.x, y: displaceY + targetPosition.y});
-      const positionX = thing.position.x + (nmx * (thing.size.halfSizeW + thing.attack.size.halfSizeW));
-      const positionY = thing.position.y + (nmy * (thing.size.halfSizeH + thing.attack.size.halfSizeH));
-      const attack = {...thing.attack, position: {x: positionX, y: positionY}};
-      thing.attack.elapsed = 0;
-      things.push(createAttack(attack));
+      const positionX = thing.position.x + (nmx * (thing.size.halfSizeW + attackBase.size.halfSizeW));
+      const positionY = thing.position.y + (nmy * (thing.size.halfSizeH + attackBase.size.halfSizeH));
+      const meleeAttack = {...attackBase, position: {x: positionX, y: positionY}};
+      thing.attack[0].elapsed = 0;
+      things.push(createAttack(meleeAttack));
+      break;
+    case EnumAttackVariant.ranged:
+      const rangedAttack = {...attackBase, moving: true, elapsed: 0, position:{x:thing.position.x, y: thing.position.y}, targetPosition, color: "orange"};
+      thing.attack[1].elapsed = 0;
+      things.push(createAttack(rangedAttack));
+      break;
+  }
 }
 
 type Edges = {
@@ -500,8 +536,6 @@ function detectBarrierCollision(thingA: Thing, thingANewPos: Position){
   return {collision: (collT || collB || collL || collR), collT: collT, collB: collB, collL: collL, collR: collR};
 }
 
-
-
 function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
 
   let distanceX = 0;
@@ -518,9 +552,11 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
   thing.slowed = 0;
   let targetPositionX = thing.position.x + distanceX;
   let targetPositionY = thing.position.y + distanceY;
+  if(thing.variant === EnumThingVariant.attack && thing.attack[0].variant === EnumAttackVariant.ranged){
+    //console.log(targetPositionX, targetPositionY);
+  }
 
   for(let idx = 0; idx < (things.length); idx++){
-
     const otherThing = things[idx];
     if(thing.id !== otherThing.id && otherThing.active){
       const collisionDetected = collisionDetector(thing, {x: targetPositionX, y: targetPositionY}, otherThing);
@@ -555,6 +591,11 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
               else {
                 otherThing.position.y += distanceY*2;
               }
+            }
+            break;
+          case EnumThingVariant.attack:
+            if(thing.attack[0].variant === EnumAttackVariant.ranged){
+              
             }
             break;
         }
@@ -615,8 +656,10 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
     switch(thing.variant){
       case EnumThingVariant.player:
         //TODO: See if this can be optimized
-        const playerAttack = thing.attack;
-        playerAttack.elapsed += elapsedS;
+        const playerAttackMelee = thing.attack[0];
+        playerAttackMelee.elapsed += elapsedS;
+        const playerAttackRanged = thing.attack[1];
+        playerAttackRanged.elapsed += elapsedS;
         if(thing.hp <= 0){
           thing.active = false;
           RUNNING = false;
@@ -627,18 +670,17 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
         if(thing.hp <= 0){
           thing.active = false;
         } else {
-          const tAtk = thing.attack
+          const tAtk = thing.attack[0];
           tAtk.elapsed += elapsedS;
           const distanceToPlayer = getMagnitudeXY(thing.position, thing.moving, thing.targetPosition);
           if(distanceToPlayer - thing.size.halfSizeW - globalPlayer.size.w < 3 && tAtk.elapsed >= (tAtk.cooldown + tAtk.leadUp)){
             tAtk.elapsed = 0;
-            configureAttack(things, thing, 0, 0, thing.targetPosition);
+            configureAttack(things, thing, tAtk, 0, 0, thing.targetPosition);
           }
         }
-        
         break;
       case EnumThingVariant.attack:
-        const attack = thing.attack;
+        const attack = thing.attack[0];
         attack.elapsed += elapsedS;
         if(attack.elapsed > attack.duration) {
           thing.hp = 0;
