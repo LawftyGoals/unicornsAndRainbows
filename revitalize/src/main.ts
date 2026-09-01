@@ -640,7 +640,7 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
       case EnumThingVariant.attack:
         const attack = thing.attack;
         attack.elapsed += elapsedS;
-        if(attack.variant === EnumAttackVariant.melee && attack.elapsed > attack.duration) {
+        if(attack.elapsed > attack.duration) {
           thing.hp = 0;
           thing.active = false;
         }
@@ -776,7 +776,6 @@ function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D){
         break;
       case 'KeyR':
         if(!RUNNING){ 
-        //TODO: THIS DOESNT WORK
           init(ctx, false);
           getDebug("");
         }
