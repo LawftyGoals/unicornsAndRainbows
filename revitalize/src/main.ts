@@ -104,7 +104,7 @@ type Zone = {
 let GLOBALID = 1;
 let RUNNING = true;
 
-const INITTHINGSNOTPLAYER = 0;
+const INITTHINGSNOTPLAYER = 100;
 
 const defaultZoneSize = {h: 720, w: 1280};
 
@@ -180,7 +180,7 @@ function createPlayer(): Thing {
         leadUp: 0,
         duration: 0.3, 
         ammunition: Infinity, 
-        speed: 600, 
+        speed: 0, 
         moving: false, 
         position: {} as Position, 
         size: {w: 60, h: 60, halfSizeW: 30, halfSizeH: 30}, 
@@ -202,7 +202,7 @@ function createPlayer(): Thing {
         leadUp: 0,
         duration: Infinity, 
         ammunition: 100, 
-        speed: 600, 
+        speed: 900, 
         moving: true, 
         position: {} as Position, 
         size: {w: 10, h: 10, halfSizeW: 5, halfSizeH: 5}, 
@@ -417,19 +417,19 @@ function processPlayerInput(player: Thing, things: Thing[]){
     player.moving = true;
     if(sH('KeyA')) {
       //A
-      player.targetPosition.x = player.position.x - 10;
+      player.targetPosition.x = player.position.x - 20;
     }
     if(sH('KeyD')) {
       //D
-      player.targetPosition.x = player.position.x + 10;
+      player.targetPosition.x = player.position.x + 20;
     }
     if(sH('KeyS')) {
       //S
-      player.targetPosition.y = player.position.y + 10;
+      player.targetPosition.y = player.position.y + 20;
     }
     if(sH('KeyW')) {
       //W
-      player.targetPosition.y = player.position.y - 10;
+      player.targetPosition.y = player.position.y - 20;
     }
   } else {
     player.moving = false;
@@ -502,19 +502,30 @@ function normalizeMagnitude(position: Position, moving: boolean, targetPosition:
   
   const magdeb = Math.sqrt(omx * omx + omy * omy);
 
-  const nmx = magdeb >= 1 ? omx / magdeb : 0;
-  const nmy = magdeb >= 1 ? omy / magdeb : 0;
-  return {nmx, nmy};
+  const nmx = magdeb >= 0.01 ? omx / magdeb : 0;
+  const nmy = magdeb >= 0.01 ? omy / magdeb : 0;
+  return {nmx, nmy, omx, omy, magdeb};
 
 }
 
 function getDistanceFromThing(elapsedS: number, thing: Thing, targetPosition: Position){
-  const {nmx, nmy} = normalizeMagnitude(thing.position, thing.moving, targetPosition);
+  const {nmx, nmy, omx, omy, magdeb} = normalizeMagnitude(thing.position, thing.moving, targetPosition);
 
-  const velocityX = thing.speed * nmx * (1 - thing.slowed);
-  const velocityY = thing.speed * nmy * (1 - thing.slowed);
+  let velocityX = thing.speed * nmx * (1 - thing.slowed);
+  let velocityY = thing.speed * nmy * (1 - thing.slowed);
+  let distX = velocityX * elapsedS;
+  let distY = velocityY * elapsedS;
+  let magDis = Math.sqrt((distX * distX) + (distY * distY));
 
-  return {x: velocityX * elapsedS, y: velocityY * elapsedS};
+  if(magDis > magdeb){
+    if(thing.variant === EnumThingVariant.attack) console.log(magDis, magdeb);
+    distX = omx;
+    distY = omy;
+  }
+
+
+
+  return {x: distX, y: distY};
 }
 
 
@@ -548,8 +559,6 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
     ({x: distanceX, y: distanceY} = getDistanceFromThing(elapsedS, thing, thing.targetPosition));
   }
 
-  //TODO: REMOVE PLEASE
-  thing.slowed = 0;
   let targetPositionX = thing.position.x + distanceX;
   let targetPositionY = thing.position.y + distanceY;
   if(thing.variant === EnumThingVariant.attack && thing.attack[0].variant === EnumAttackVariant.ranged){
@@ -567,12 +576,16 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
         switch(otherThing.variant){
           case EnumThingVariant.player:
             //TODO: This needs to be moved to action. otherThing.slowed = 0.7;
-            if(absX < 12 && absY < 12){
-              distanceX = 0;
-              distanceY = 0;
-            } else {
-              distanceX = -(distanceX*2);
-              distanceY = -(distanceY*2);
+            //TODO: FUCKING REDO THIS NO CAP
+            if(otherThing.variant === EnumThingVariant.enemy){
+              if(absX < 12 && absY < 12){
+                distanceX = 0;
+                distanceY = 0;
+              } else {
+                distanceX = -(distanceX*2);
+                distanceY = -(distanceY*2);
+              }
+
             }
           break;
           case EnumThingVariant.enemy:
@@ -596,6 +609,7 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
           case EnumThingVariant.attack:
             if(thing.attack[0].variant === EnumAttackVariant.ranged){
               
+              
             }
             break;
         }
@@ -605,6 +619,7 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
   const barrierCol = detectBarrierCollision(thing, {x:targetPositionX, y: targetPositionY });
 
   if(barrierCol.collision){
+
     if(thing.variant === EnumThingVariant.player){
       if(barrierCol.collT || barrierCol.collB){
         distanceY = 0;
@@ -613,6 +628,10 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
         distanceX = 0;
       }
 
+    } else if(thing.variant === EnumThingVariant.attack && thing.attack[0].variant === EnumAttackVariant.ranged){
+      
+      thing.hp = 0; 
+      thing.active = false;
     } else {
       
       if(barrierCol.collT){
@@ -651,6 +670,7 @@ function rotatospotatos(thing: Thing, position: Position, rotationTarget: Positi
   thing.rotation = (Math.atan2(rotationTarget.y - position.y, rotationTarget.x - position.x))-(Math.PI/4) ;
 }
 
+
 function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: number){
   if(thing.active){
     switch(thing.variant){
@@ -686,6 +706,10 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
           thing.hp = 0;
           thing.active = false;
         }
+        if(attack.variant === EnumAttackVariant.ranged && getMagnitudeXY(thing.position, thing.moving, thing.targetPosition) < 3){
+          thing.hp = 0;
+          thing.active = false;
+        }
 
         things.forEach(otherThing => {
           if(
@@ -695,6 +719,10 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
             if((thing.targetCollisionLayer.intersection(otherThing.collisionLayer)).size){
               attack.thingAttacked.add(otherThing);
               otherThing.hp -= attack.damage;
+              if(attack.variant === EnumAttackVariant.ranged){
+                thing.hp = 0;
+                thing.active = false;
+              }
             }
           }
 
@@ -778,6 +806,8 @@ function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D){
         activeKeys.add("ML");
         break;
       case 2:
+        //TODO: MR IS A SHIT KEY TO USE TOO MUCH FUNCTIONALITY. maybe move melee
+        //attack to e and shooting to ml?
         activeKeys.add("MR");
         break;
     }
