@@ -439,13 +439,13 @@ function processPlayerInput(player: Thing, things: Thing[]){
     if(player.active) paused = !paused;
     activeKeys.delete('KeyP')
   }
-  if(sH('ML')){
+  if(sH('Space')){
     if(player.attack[0].elapsed >= player.attack[0].cooldown){
       const {displaceX, displaceY} = playerZoneDisplace(player);
       configureAttack(things, player, player.attack[0],  displaceX, displaceY, mousePosition);
     }
   }
-  if(sH('MR')){
+  if(sH('ML')){
     if(player.attack[1].elapsed >= player.attack[1].cooldown){
       const {displaceX, displaceY} = playerZoneDisplace(player);
       configureAttack(things, player, player.attack[1],  displaceX, displaceY, {x:mousePosition.x + displaceX, y:mousePosition.y + displaceY});
@@ -523,8 +523,6 @@ function getDistanceFromThing(elapsedS: number, thing: Thing, targetPosition: Po
     distY = omy;
   }
 
-
-
   return {x: distX, y: distY};
 }
 
@@ -542,7 +540,6 @@ function detectBarrierCollision(thingA: Thing, thingANewPos: Position){
   const collB = ab > (defaultZoneSize.h * 3);
   const collL = al < 0;
   const collR = ar > (defaultZoneSize.w * 3);
-
 
   return {collision: (collT || collB || collL || collR), collT: collT, collB: collB, collL: collL, collR: collR};
 }
@@ -835,8 +832,9 @@ function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D){
     if((y >= 0) && (y <= defaultZoneSize.h)) mousePosition.y = y;
   });
 
-  const keyMaps = new Set(['KeyA', 'KeyS', 'KeyD', 'KeyW']);
+  const keyMaps = new Set(['KeyA', 'KeyS', 'KeyD', 'KeyW', 'ShiftLeft', 'Space']);
   addEventListener("keydown", (event) => {
+    console.log(event);
     if(keyMaps.has(event.code))
       activeKeys.add(event.code);
   });
