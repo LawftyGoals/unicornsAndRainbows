@@ -67,8 +67,8 @@ const EnumAttackVariant = {
   ranged: 1
 }
 
-type AttackVariantKey = keyof typeof EnumAttackVariant;
-type AttackVariant = typeof EnumAttackVariant[AttackVariantKey];
+//type AttackVariantKey = keyof typeof EnumAttackVariant;
+//type AttackVariant = typeof EnumAttackVariant[AttackVariantKey];
   
 
 type Thing = {
@@ -79,6 +79,8 @@ type Thing = {
   maxHp: number,
   attack: Attack[],
   speed: number,
+  speedBoostElapsed: number,
+  maxSpeed: number,
   slowed: number,
   moving: boolean,
   position: Position,
@@ -146,6 +148,8 @@ function createAttack(newAttack: Attack ): Thing{
     maxHp: 0,
     attack: [newAttack],
     speed: newAttack.speed,
+    speedBoostElapsed: 0,
+    maxSpeed: newAttack.speed,
     slowed: 0,
     moving: newAttack.moving,
     position: newAttack.position,
@@ -164,6 +168,8 @@ function createAttack(newAttack: Attack ): Thing{
 
 }
 
+const playerSize = {h: 30, w: 30, halfSizeH: 15, halfSizeW: 15};
+
 function createPlayer(): Thing {
   return {
     id: 0,
@@ -178,7 +184,7 @@ function createPlayer(): Thing {
         damage: 100, 
         cooldown: 1, 
         leadUp: 0,
-        duration: 0.3, 
+        duration: 1, 
         ammunition: Infinity, 
         speed: 0, 
         moving: false, 
@@ -219,6 +225,8 @@ function createPlayer(): Thing {
 
     ],
     speed: 300,
+    speedBoostElapsed: 100,
+    maxSpeed: 300,
     slowed: 0,
     moving: false,
     position: {
@@ -231,64 +239,13 @@ function createPlayer(): Thing {
     nmy: 0,
     distanceX: 0,
     distanceY: 0,
-    size: {h: 30, w: 30, halfSizeH: 15, halfSizeW: 15},
+    size: playerSize,
     color: "red",
     targetPosition:  {x: defaultZoneSize.w / 2, y: defaultZoneSize.h /2},
     rotationTarget: mousePosition,
     rotation: 0,
   };
 }
-
-let globalPlayer: Thing = {
-  id: 0,
-  active: true,
-  variant: EnumThingVariant.player,
-  hp: 500,
-  maxHp: 500,
-  attack: [{
-    variant: EnumAttackVariant.melee,
-    elapsed: 100,
-    leadUp: 0,
-    damage: 100, 
-    cooldown: 1, 
-    duration: 0.3, 
-    ammunition: Infinity, 
-    speed: 600, 
-    moving: true, 
-    position: {} as Position, 
-    size: {w: 60, h: 60, halfSizeW: 30, halfSizeH: 30}, 
-    collisionLayer: new Set([3]), 
-    targetCollisionLayer: new Set([1]), 
-    color: "rgba(10, 32, 255, 0.3)", 
-    targetPosition: {} as Position, 
-    rotationTarget: {} as Position, 
-    rotation: 0, 
-    innerRange: 0, 
-    outerRange: 60,
-    thingAttacked: new Set()
-  }],
-  speed: 300,
-  slowed: 0,
-  moving: false,
-  position: {
-    x: defaultZoneSize.w / 2,
-    y: defaultZoneSize.h / 2,
-  },
-  collisionLayer: new Set([0]),
-  targetCollisionLayer: new Set([1]),
-  nmx: 0,
-  nmy: 0,
-  distanceX: 0,
-  distanceY: 0,
-  size: {h: 30, w: 30, halfSizeH: 15, halfSizeW: 15},
-  color: "red",
-  targetPosition:  {x: defaultZoneSize.w / 2, y: defaultZoneSize.h /2},
-  rotationTarget: mousePosition,
-  rotation: 0,
-};
-
-
-//const globalThings = [globalPlayer];
 
 function swapWithLastAndPop(things: Thing[], idx: number){
   if(idx !== things.length - 1){
@@ -336,6 +293,8 @@ function randomThingCreator(things: Thing[], count: number, playerTarget: Thing)
           thingAttacked: new Set()
         }],
         speed: 200,
+        speedBoostElapsed: 0,
+        maxSpeed: 200,
         slowed: 0,
         moving: true,
         nmx: 0,
@@ -445,6 +404,14 @@ function processPlayerInput(player: Thing, things: Thing[]){
       configureAttack(things, player, player.attack[0],  displaceX, displaceY, mousePosition);
     }
   }
+  if(sH('ShiftLeft')){
+    if(player.speedBoostElapsed > 3){
+      player.speed = player.speed * 2;
+      player.slowed = 0;
+      player.speedBoostElapsed = 0;
+
+    }
+  }
   if(sH('ML')){
     if(player.attack[1].elapsed >= player.attack[1].cooldown){
       const {displaceX, displaceY} = playerZoneDisplace(player);
@@ -518,7 +485,6 @@ function getDistanceFromThing(elapsedS: number, thing: Thing, targetPosition: Po
   let magDis = Math.sqrt((distX * distX) + (distY * distY));
 
   if(magDis > magdeb){
-    if(thing.variant === EnumThingVariant.attack) console.log(magDis, magdeb);
     distX = omx;
     distY = omy;
   }
@@ -558,9 +524,6 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
 
   let targetPositionX = thing.position.x + distanceX;
   let targetPositionY = thing.position.y + distanceY;
-  if(thing.variant === EnumThingVariant.attack && thing.attack[0].variant === EnumAttackVariant.ranged){
-    //console.log(targetPositionX, targetPositionY);
-  }
 
   for(let idx = 0; idx < (things.length); idx++){
     const otherThing = things[idx];
@@ -677,6 +640,20 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
         playerAttackMelee.elapsed += elapsedS;
         const playerAttackRanged = thing.attack[1];
         playerAttackRanged.elapsed += elapsedS;
+        thing.speedBoostElapsed += elapsedS;
+
+        if(thing.slowed > 0){
+          thing.slowed -= elapsedS/5;
+        } else {
+          thing.slowed = 0;
+        }
+
+        if(thing.speed > thing.maxSpeed){
+          if(thing.speedBoostElapsed > 0.5){
+            thing.speed = thing.maxSpeed
+          }
+        }
+
         if(thing.hp <= 0){
           thing.active = false;
           RUNNING = false;
@@ -690,9 +667,10 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
           const tAtk = thing.attack[0];
           tAtk.elapsed += elapsedS;
           const distanceToPlayer = getMagnitudeXY(thing.position, thing.moving, thing.targetPosition);
-          if(distanceToPlayer - thing.size.halfSizeW - globalPlayer.size.w < 3 && tAtk.elapsed >= (tAtk.cooldown + tAtk.leadUp)){
+          if(distanceToPlayer - thing.size.halfSizeW - playerSize.w < 3 && tAtk.elapsed >= (tAtk.cooldown + tAtk.leadUp)){
             tAtk.elapsed = 0;
             configureAttack(things, thing, tAtk, 0, 0, thing.targetPosition);
+
           }
         }
         break;
@@ -712,7 +690,10 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
           if(
             thing.id !== otherThing.id 
           && collisionDetector(thing, thing.position, otherThing) 
-          && !(attack.thingAttacked.has(otherThing))){ // TODO: Can collision detection be unified?
+          && !(attack.thingAttacked.has(otherThing))
+          ){
+
+            // TODO: Can collision detection be unified?
             if((thing.targetCollisionLayer.intersection(otherThing.collisionLayer)).size){
               attack.thingAttacked.add(otherThing);
               otherThing.hp -= attack.damage;
@@ -720,7 +701,13 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
                 thing.hp = 0;
                 thing.active = false;
               }
+              if(otherThing.variant === EnumThingVariant.player){
+                otherThing.slowed = 0.5;
+              }
             }
+
+            
+
           }
 
         })
@@ -834,7 +821,6 @@ function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D){
 
   const keyMaps = new Set(['KeyA', 'KeyS', 'KeyD', 'KeyW', 'ShiftLeft', 'Space']);
   addEventListener("keydown", (event) => {
-    console.log(event);
     if(keyMaps.has(event.code))
       activeKeys.add(event.code);
   });
