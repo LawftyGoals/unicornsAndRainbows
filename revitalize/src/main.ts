@@ -537,8 +537,8 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
           case EnumThingVariant.player:
             //TODO: This needs to be moved to action. otherThing.slowed = 0.7;
             //TODO: FUCKING REDO THIS NO CAP
-            if(otherThing.variant === EnumThingVariant.enemy){
-              if(absX < 12 && absY < 12){
+            if(thing.variant === EnumThingVariant.enemy){
+              if(absX < 12 && absX > 6 && absY > 6 && absY < 12){
                 distanceX = 0;
                 distanceY = 0;
               } else {
