@@ -106,7 +106,7 @@ type Zone = {
 let GLOBALID = 1;
 let RUNNING = true;
 
-const INITTHINGSNOTPLAYER = 10;
+const INITTHINGSNOTPLAYER = 100;
 
 const defaultZoneSize = {h: 720, w: 1280};
 
@@ -915,7 +915,7 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number,
     renderUI(ctx, player);
   }
 
-  if(RUNNING)requestAnimationFrame((ts) => run(ctx, timestamp, ts, things, player));
+  if(RUNNING) requestAnimationFrame((ts) => run(ctx, timestamp, ts, things, player));
 }
 
 function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D){
@@ -960,22 +960,22 @@ function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D){
   addEventListener("keydown", (event) => {
     if(keyMaps.has(event.code))
       activeKeys.add(event.code);
-  });
-  addEventListener("keyup", (event) => {
-    switch (event.code){
-      case 'KeyP': 
+    if(event.code === 'KeyR'){
 
-        activeKeys.add(event.code);
-        break;
-      case 'KeyR':
         if(!RUNNING){ 
           init(ctx, false);
           getDebug("");
         }
         else {
           getDebug("Press R again to restart game.");
-          RUNNING = false;
+         // RUNNING = false;
         }
+    }
+  });
+  addEventListener("keyup", (event) => {
+    switch (event.code){
+      case 'KeyP': 
+        activeKeys.add(event.code);
         break;
     }
     if(keyMaps.has(event.code)) activeKeys.delete(event.code);
