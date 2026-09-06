@@ -106,7 +106,7 @@ type Zone = {
 let GLOBALID = 1;
 let RUNNING = true;
 
-const INITTHINGSNOTPLAYER = 100;
+const INITTHINGSNOTPLAYER = 10;
 
 const defaultZoneSize = {h: 720, w: 1280};
 
@@ -255,62 +255,186 @@ function swapWithLastAndPop(things: Thing[], idx: number){
   things.pop();
 }
 
-function randomThingCreator(things: Thing[], count: number, playerTarget: Thing){
-  for(let i = 1; i < count+1; i++){
-    GLOBALID++;
-    things.push(
-      {
-        id: GLOBALID,
-        active: true,
-        variant: EnumThingVariant.enemy,
-        hp: 50,
-        maxHp: 50,
-        attack: [{ 
-          variant: EnumAttackVariant.melee,
-          elapsed: 100, 
-          damage: 10, 
-          cooldown: 3, 
-          leadUp: 0.5,
-          duration: 0.3, 
-          ammunition: Infinity, 
-          speed: 600, 
-          moving: true, 
-          position: {} as Position, 
-          size: {
-            w: 20, 
-            h: 20, 
-            halfSizeW: 10, 
-            halfSizeH: 10
-          }, 
-          collisionLayer: new Set([3]), 
-          targetCollisionLayer: new Set([0]), 
-          color: "darkslategray", 
-          targetPosition: {} as Position, 
-          rotationTarget: {} as Position, 
-          rotation: 0, 
-          innerRange: 0, 
-          outerRange: 40,
-          thingAttacked: new Set()
-        }],
-        speed: 200,
-        speedBoostElapsed: 0,
-        maxSpeed: 200,
-        slowed: 0,
-        moving: true,
-        nmx: 0,
-        nmy: 0,
-        distanceX: 0,
-        distanceY: 0,
-        position: {x: Math.floor(Math.random()*defaultZoneSize.w), y: Math.floor(Math.random()*defaultZoneSize.h)},
-        size: {h: 20, w: 20, halfSizeH: 10, halfSizeW: 10},
-        collisionLayer: new Set([1]),
-        targetCollisionLayer: new Set([0, 1]),
-        color: `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`,
-        targetPosition: playerTarget.position,
-        rotationTarget: playerTarget.position,
-        rotation: 0,
-      }
-    )
+function randomThingCreator(things: Thing[], playerTarget: Thing){
+  GLOBALID++;
+  things.push(
+    {
+      id: GLOBALID,
+      active: true,
+      variant: EnumThingVariant.enemy,
+      hp: 50,
+      maxHp: 50,
+      attack: [{ 
+        variant: EnumAttackVariant.melee,
+        elapsed: 100, 
+        damage: 10, 
+        cooldown: 3, 
+        leadUp: 0.5,
+        duration: 0.3, 
+        ammunition: Infinity, 
+        speed: 600, 
+        moving: true, 
+        position: {} as Position, 
+        size: {
+          w: 20, 
+          h: 20, 
+          halfSizeW: 10, 
+          halfSizeH: 10
+        }, 
+        collisionLayer: new Set([3]), 
+        targetCollisionLayer: new Set([0]), 
+        color: "darkslategray", 
+        targetPosition: {} as Position, 
+        rotationTarget: {} as Position, 
+        rotation: 0, 
+        innerRange: 0, 
+        outerRange: 40,
+        thingAttacked: new Set()
+      }],
+      speed: 200,
+      speedBoostElapsed: 0,
+      maxSpeed: 200,
+      slowed: 0,
+      moving: true,
+      nmx: 0,
+      nmy: 0,
+      distanceX: 0,
+      distanceY: 0,
+      position: {x: Math.floor(Math.random()*defaultZoneSize.w), y: Math.floor(Math.random()*defaultZoneSize.h)},
+      size: {h: 20, w: 20, halfSizeH: 10, halfSizeW: 10},
+      collisionLayer: new Set([1]),
+      targetCollisionLayer: new Set([0, 1]),
+      color: `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`,
+      targetPosition: playerTarget.position,
+      rotationTarget: playerTarget.position,
+      rotation: 0,
+    }
+  )
+}
+
+function randomFastThingCreator(things: Thing[], playerTarget: Thing){
+  GLOBALID++;
+  things.push(
+    {
+      id: GLOBALID,
+      active: true,
+      variant: EnumThingVariant.enemy,
+      hp: 10,
+      maxHp: 10,
+      attack: [{ 
+        variant: EnumAttackVariant.melee,
+        elapsed: 100, 
+        damage: 5, 
+        cooldown: 3, 
+        leadUp: 0.5,
+        duration: 0.3, 
+        ammunition: Infinity, 
+        speed: 600, 
+        moving: true, 
+        position: {} as Position, 
+        size: {
+          w: 20, 
+          h: 20, 
+          halfSizeW: 10, 
+          halfSizeH: 10 
+        }, 
+        collisionLayer: new Set([3]), 
+        targetCollisionLayer: new Set([0]), 
+        color: "darkslategray", 
+        targetPosition: {} as Position, 
+        rotationTarget: {} as Position, 
+        rotation: 0, 
+        innerRange: 0, 
+        outerRange: 40,
+        thingAttacked: new Set()
+      }],
+      speed: 500,
+      speedBoostElapsed: 0,
+      maxSpeed: 500,
+      slowed: 0,
+      moving: true,
+      nmx: 0,
+      nmy: 0,
+      distanceX: 0,
+      distanceY: 0,
+      position: {x: Math.floor(Math.random()*defaultZoneSize.w), y: Math.floor(Math.random()*defaultZoneSize.h)},
+      size: {h: 10, w: 10, halfSizeH: 5, halfSizeW: 5},
+      collisionLayer: new Set([1]),
+      targetCollisionLayer: new Set([0, 1]),
+      color: `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`,
+      targetPosition: playerTarget.position,
+      rotationTarget: playerTarget.position,
+      rotation: 0,
+    }
+  )
+}
+
+function randomRangedThingCreator(things: Thing[], playerTarget: Thing){
+  GLOBALID++;
+  things.push(
+    {
+      id: GLOBALID,
+      active: true,
+      variant: EnumThingVariant.enemy,
+      hp: 10,
+      maxHp: 10,
+      attack: [{ 
+        variant: EnumAttackVariant.ranged,
+        elapsed: 100, 
+        damage: 10, 
+        cooldown: 10, 
+        leadUp: 0.5,
+        duration: Infinity, 
+        ammunition: Infinity, 
+        speed: 800, 
+        moving: true, 
+        position: {} as Position, 
+        size: {
+          w: 16, 
+          h: 16, 
+          halfSizeW: 8, 
+          halfSizeH: 8 
+        }, 
+        collisionLayer: new Set([3]), 
+        targetCollisionLayer: new Set([0]), 
+        color: "darkblue", 
+        targetPosition: {} as Position, 
+        rotationTarget: {} as Position, 
+        rotation: 0, 
+        innerRange: 0, 
+        outerRange: 500,
+        thingAttacked: new Set()
+      }],
+      speed: 500,
+      speedBoostElapsed: 0,
+      maxSpeed: 500,
+      slowed: 0,
+      moving: true,
+      nmx: 0,
+      nmy: 0,
+      distanceX: 0,
+      distanceY: 0,
+      position: {x: Math.floor(Math.random()*defaultZoneSize.w), y: Math.floor(Math.random()*defaultZoneSize.h)},
+      size: {h: 16, w: 16, halfSizeH: 5, halfSizeW: 5},
+      collisionLayer: new Set([1]),
+      targetCollisionLayer: new Set([0, 1]),
+      color: `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`,
+      targetPosition: playerTarget.position,
+      rotationTarget: playerTarget.position,
+      rotation: 0,
+    }
+  )
+}
+
+function generateRandomEnemies(things: Thing[], player:Thing,  count: number){
+  for(let i = 0; i < count; i++){
+    const random = Math.random();
+    if(random < 0.3) randomThingCreator(things, player);
+    else if (random < 0.66 && random >= 0.3){
+
+      randomRangedThingCreator(things, player);
+    }
+    else randomFastThingCreator(things, player);
   }
 }
 
@@ -431,8 +555,9 @@ function configureAttack(things: Thing[], thing:Thing, attackBase: Attack, displ
       things.push(createAttack(meleeAttack));
       break;
     case EnumAttackVariant.ranged:
-      const rangedAttack = {...attackBase, moving: true, elapsed: 0, position:{x:thing.position.x, y: thing.position.y}, targetPosition, color: "orange"};
-      thing.attack[1].elapsed = 0;
+      const rangedAttack = {...attackBase, moving: true, elapsed: 0, position:{x:thing.position.x, y: thing.position.y}, targetPosition: {x: targetPosition.x, y: targetPosition.y}, color: "orange"};
+      if(thing.variant === EnumThingVariant.player) thing.attack[1].elapsed = 0;
+      else thing.attack[0].elapsed = 0;
       things.push(createAttack(rangedAttack));
       break;
   }
@@ -567,10 +692,6 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
             }
             break;
           case EnumThingVariant.attack:
-            if(thing.attack[0].variant === EnumAttackVariant.ranged){
-              
-              
-            }
             break;
         }
       }
@@ -589,7 +710,6 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
       }
 
     } else if(thing.variant === EnumThingVariant.attack && thing.attack[0].variant === EnumAttackVariant.ranged){
-      
       thing.hp = 0; 
       thing.active = false;
     } else {
@@ -607,6 +727,14 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
         distanceX = -thing.size.halfSizeW;
       }
 
+    }
+  }
+
+
+  if(thing.variant === EnumThingVariant.enemy && thing.attack[0].variant === EnumAttackVariant.ranged){
+    if(getMagnitudeXY(thing.position, thing.moving, thing.targetPosition) - 20 < thing.attack[0].outerRange){
+      distanceX = 0;
+      distanceY = 0;
     }
   }
 
@@ -667,10 +795,19 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
           const tAtk = thing.attack[0];
           tAtk.elapsed += elapsedS;
           const distanceToPlayer = getMagnitudeXY(thing.position, thing.moving, thing.targetPosition);
-          if(distanceToPlayer - thing.size.halfSizeW - playerSize.w < 3 && tAtk.elapsed >= (tAtk.cooldown + tAtk.leadUp)){
-            tAtk.elapsed = 0;
-            configureAttack(things, thing, tAtk, 0, 0, thing.targetPosition);
 
+          if(tAtk.variant === EnumAttackVariant.ranged && tAtk.elapsed >= (tAtk.cooldown + tAtk.leadUp)){
+            if(distanceToPlayer < tAtk.outerRange){
+              tAtk.elapsed = 0;
+              configureAttack(things, thing, tAtk, 0, 0, thing.targetPosition);
+            }
+
+          } else {
+            if(distanceToPlayer - thing.size.halfSizeW - playerSize.w < 3 && tAtk.elapsed >= (tAtk.cooldown + tAtk.leadUp)){
+              tAtk.elapsed = 0;
+              configureAttack(things, thing, tAtk, 0, 0, thing.targetPosition);
+
+            }
           }
         }
         break;
@@ -852,7 +989,7 @@ function init(ctx: CanvasRenderingContext2D, pause: boolean) {
   const things = [player];
   paused = pause;
 
-  randomThingCreator(things, INITTHINGSNOTPLAYER, player);
+  generateRandomEnemies(things, player, INITTHINGSNOTPLAYER);
 
   requestAnimationFrame((timestamp) => run(ctx, 0, timestamp, things, player));
   return 0;
