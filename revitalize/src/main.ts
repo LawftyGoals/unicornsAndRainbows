@@ -230,8 +230,8 @@ function createPlayer(): Thing {
     slowed: 0,
     moving: false,
     position: {
-      x: defaultZoneSize.w / 2,
-      y: defaultZoneSize.h / 2,
+      x: (3 * defaultZoneSize.w) / 2,
+      y: (3 * defaultZoneSize.h) / 2,
     },
     collisionLayer: new Set([0]),
     targetCollisionLayer: new Set([1]),
@@ -579,10 +579,17 @@ function getEdges(position: Position, size: Size): Edges{
   }
 }
 
-function getMagnitudeXY(position: Position, moving: boolean, targetPosition: Position){
+function getDistanceToThing(position: Position, moving: boolean, targetPosition: Position){
 
   const omx = moving ? (targetPosition.x - position.x) : 0;
   const omy = moving ? (targetPosition.y - position.y) : 0;
+
+  return {omx, omy}
+}
+
+function getMagnitudeXY(position: Position, moving: boolean, targetPosition: Position){
+
+  const {omx, omy} = getDistanceToThing(position, moving, targetPosition);
 
   return Math.sqrt(omx * omx + omy * omy);
 }
@@ -600,7 +607,7 @@ function normalizeMagnitude(position: Position, moving: boolean, targetPosition:
 
 }
 
-function getDistanceFromThing(elapsedS: number, thing: Thing, targetPosition: Position){
+function getDistanceMovedTowardsThing(elapsedS: number, thing: Thing, targetPosition: Position){
   const {nmx, nmy, omx, omy, magdeb} = normalizeMagnitude(thing.position, thing.moving, targetPosition);
 
   let velocityX = thing.speed * nmx * (1 - thing.slowed);
@@ -644,7 +651,7 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
     distanceX = 0;
     distanceY = 0;
   } else {
-    ({x: distanceX, y: distanceY} = getDistanceFromThing(elapsedS, thing, thing.targetPosition));
+    ({x: distanceX, y: distanceY} = getDistanceMovedTowardsThing(elapsedS, thing, thing.targetPosition));
   }
 
   let targetPositionX = thing.position.x + distanceX;
@@ -654,45 +661,41 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
     const otherThing = things[idx];
     if(thing.id !== otherThing.id && otherThing.active){
       const collisionDetected = collisionDetector(thing, {x: targetPositionX, y: targetPositionY}, otherThing);
-      if(collisionDetected){
-        const dist = getDistanceFromThing(elapsedS, thing, otherThing.position);
-        const absX = Math.abs(dist.x);
-        const absY = Math.abs(dist.y);
-        switch(otherThing.variant){
-          case EnumThingVariant.player:
-            //TODO: This needs to be moved to action. otherThing.slowed = 0.7;
-            //TODO: FUCKING REDO THIS NO CAP
-            if(thing.variant === EnumThingVariant.enemy){
-              if(absX < 12 && absX > 6 && absY > 6 && absY < 12){
-                distanceX = 0;
-                distanceY = 0;
-              } else {
-                distanceX = -(distanceX*2);
-                distanceY = -(distanceY*2);
-              }
 
-            }
-          break;
-          case EnumThingVariant.enemy:
-            if(thing.variant === EnumThingVariant.enemy){
-              if(absX < 0.5 && absY < 0.5){
-                dist.x = thing.size.w;
-                dist.y = thing.size.h;
-              }
-              distanceX = -dist.x;
-              distanceY = -dist.y;
-            }
-            if(thing.variant === EnumThingVariant.player){
-              if(distanceX > distanceY){
-                otherThing.position.x += distanceX*2
-              }
-              else {
+      if(collisionDetected){
+        const {omx, omy} = getDistanceToThing(thing.position, thing.moving, otherThing.position);
+        const magXY = getMagnitudeXY(thing.position, thing.moving, otherThing.position);
+
+        switch(thing.variant){
+          case EnumThingVariant.player:
+            if(otherThing.variant === EnumThingVariant.enemy){
+              if(distanceX >= distanceY){
+                otherThing.position.x += distanceX*2;
+              } else {
                 otherThing.position.y += distanceY*2;
               }
             }
             break;
-          case EnumThingVariant.attack:
-            break;
+          case EnumThingVariant.enemy:
+            if(otherThing.variant === EnumThingVariant.player){
+              if(magXY < thing.size.halfSizeW + otherThing.size.halfSizeW){
+                distanceX = -(distanceX*2);
+                distanceY = -(distanceY*2);
+              } else {
+                distanceX = 0;
+                distanceY = 0;
+              }
+            }
+            if(otherThing.variant === EnumThingVariant.enemy){
+              if(magXY < thing.size.halfSizeW + otherThing.size.halfSizeW){
+                distanceX = -omx;
+                distanceY = -omy;
+              } else {
+                distanceX = 0;
+                distanceY = 0;
+              } 
+            }
+
         }
       }
     }
