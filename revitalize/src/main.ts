@@ -9,6 +9,14 @@ function getDebug(innerHtml: string) {
   frameCount++;
   if (frameCount >= 10) frameCount = 0;
 }
+
+type Edges = {
+  t: number, 
+  b: number, 
+  l: number, 
+  r: number 
+};
+
 type Position = {
   x: number,
   y: number,
@@ -35,11 +43,12 @@ const EnumThingVariant = {
 };
 
 
-type ThingVariantKey = keyof typeof EnumThingVariant;
-type ThingVariant = typeof EnumThingVariant[ThingVariantKey];
+type AttackVariantKey = keyof typeof EnumAttackVariant;
+type AttackVariant = typeof EnumAttackVariant[AttackVariantKey];
+
 
 type Attack = {
-  variant: ThingVariant,
+  variant: AttackVariant,
   damage: number,
   elapsed: number,
   cooldown: number,
@@ -67,9 +76,9 @@ const EnumAttackVariant = {
   ranged: 1
 }
 
-//type AttackVariantKey = keyof typeof EnumAttackVariant;
-//type AttackVariant = typeof EnumAttackVariant[AttackVariantKey];
   
+type ThingVariantKey = keyof typeof EnumThingVariant;
+type ThingVariant = typeof EnumThingVariant[ThingVariantKey];
 
 type Thing = {
   id: number,
@@ -113,17 +122,33 @@ const defaultZoneSize = {h: 720, w: 1280};
 const playerCentered = {x: defaultZoneSize.w/2, y:  defaultZoneSize.h/2}
 
 const map = [
-  {color: "rebeccapurple", position: {x:0, y:0}, size: defaultZoneSize},
-  {color: "blue", position: {x:1, y:0}, size: defaultZoneSize},
-  {color: "teal", position: {x:2, y:0}, size: defaultZoneSize},
-  {color: "orange", position: {x:0, y:1}, size: defaultZoneSize},
-  {color: "green", position: {x:1, y:1}, size: defaultZoneSize},
-  {color: "black", position: {x:2, y:1}, size: defaultZoneSize},
-  {color: "pink", position: {x:0, y:2}, size: defaultZoneSize},
-  {color: "brown", position: {x:1, y:2}, size: defaultZoneSize},
-  {color: "grey", position: {x:2, y:2}, size: defaultZoneSize}
+  {color: "midnightblue", position: {x:0, y:0}, size: defaultZoneSize},
+  {color: "midnightblue", position: {x:1, y:0}, size: defaultZoneSize},
+  {color: "midnightblue", position: {x:2, y:0}, size: defaultZoneSize},
+  {color: "midnightblue", position: {x:0, y:1}, size: defaultZoneSize},
+  {color: "midnightblue", position: {x:1, y:1}, size: defaultZoneSize},
+  {color: "midnightblue", position: {x:2, y:1}, size: defaultZoneSize},
+  {color: "midnightblue", position: {x:0, y:2}, size: defaultZoneSize},
+  {color: "midnightblue", position: {x:1, y:2}, size: defaultZoneSize},
+  {color: "midnightblue", position: {x:2, y:2}, size: defaultZoneSize}
 ];
 
+
+function getZoneEdges({x, y}: Position){
+  const t = y * defaultZoneSize.h;
+  const l = x * defaultZoneSize.w;
+  const r = (x + 1) * defaultZoneSize.w;
+  const b = (y + 1) * defaultZoneSize.h;
+
+  return {t, l, r, b};
+
+}
+
+const wave = {
+  regular: 10,
+  fast: 20,
+  ranged: 5
+};
 
 let paused = true;
 
@@ -131,9 +156,11 @@ const mousePosition = { x: defaultZoneSize.w/2, y: defaultZoneSize.h/2 };
 
 /*
   * collision layer: 
-  * 0 - wall
-* 1 - player
-* 2 - base enemy
+  * 0 - player
+* 1 - base enemy
+* 2 - fast enemy
+* 3 - attack
+* 4 - ranged enemy
 */
 
 function createAttack(newAttack: Attack ): Thing{
@@ -191,7 +218,7 @@ function createPlayer(): Thing {
         position: {} as Position, 
         size: {w: 60, h: 60, halfSizeW: 30, halfSizeH: 30}, 
         collisionLayer: new Set([3]), 
-        targetCollisionLayer: new Set([1]), 
+        targetCollisionLayer: new Set([1, 2, 4]), 
         color: "rgba(10, 32, 255, 0.3)", 
         targetPosition: {} as Position, 
         rotationTarget: {} as Position, 
@@ -213,7 +240,7 @@ function createPlayer(): Thing {
         position: {} as Position, 
         size: {w: 10, h: 10, halfSizeW: 5, halfSizeH: 5}, 
         collisionLayer: new Set([3]), 
-        targetCollisionLayer: new Set([1]), 
+        targetCollisionLayer: new Set([1, 2, 4]), 
         color: "rgba(244, 1, 32, 0.3)", 
         targetPosition: {} as Position, 
         rotationTarget: {} as Position, 
@@ -234,7 +261,7 @@ function createPlayer(): Thing {
       y: (3 * defaultZoneSize.h) / 2,
     },
     collisionLayer: new Set([0]),
-    targetCollisionLayer: new Set([1]),
+    targetCollisionLayer: new Set([1, 2]),
     nmx: 0,
     nmy: 0,
     distanceX: 0,
@@ -359,8 +386,8 @@ function randomFastThingCreator(things: Thing[], playerTarget: Thing){
       distanceY: 0,
       position: {x: Math.floor(Math.random()*defaultZoneSize.w), y: Math.floor(Math.random()*defaultZoneSize.h)},
       size: {h: 10, w: 10, halfSizeH: 5, halfSizeW: 5},
-      collisionLayer: new Set([1]),
-      targetCollisionLayer: new Set([0, 1]),
+      collisionLayer: new Set([2]),
+      targetCollisionLayer: new Set([0]),
       color: `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`,
       targetPosition: playerTarget.position,
       rotationTarget: playerTarget.position,
@@ -416,8 +443,8 @@ function randomRangedThingCreator(things: Thing[], playerTarget: Thing){
       distanceY: 0,
       position: {x: Math.floor(Math.random()*defaultZoneSize.w), y: Math.floor(Math.random()*defaultZoneSize.h)},
       size: {h: 16, w: 16, halfSizeH: 5, halfSizeW: 5},
-      collisionLayer: new Set([1]),
-      targetCollisionLayer: new Set([0, 1]),
+      collisionLayer: new Set([4]),
+      targetCollisionLayer: new Set([0, 4]),
       color: `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`,
       targetPosition: playerTarget.position,
       rotationTarget: playerTarget.position,
@@ -563,12 +590,6 @@ function configureAttack(things: Thing[], thing:Thing, attackBase: Attack, displ
   }
 }
 
-type Edges = {
-  t: number, 
-  b: number, 
-  l: number, 
-  r: number 
-};
 
 function getEdges(position: Position, size: Size): Edges{
   return {
@@ -642,6 +663,13 @@ function detectBarrierCollision(thingA: Thing, thingANewPos: Position){
   return {collision: (collT || collB || collL || collR), collT: collT, collB: collB, collL: collL, collR: collR};
 }
 
+function zoneCollisionDetector(player: Thing, zonePosition: Position){
+  const {t: at, b: ab, l: al, r: ar} = getEdges(player.position, player.size);
+  const {t: bt, b: bb, l: bl, r: br} = getZoneEdges(zonePosition);
+
+  return !(ab < bt || at > bb || ar < bl || al > br);
+}
+
 function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
 
   let distanceX = 0;
@@ -687,15 +715,20 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
               }
             }
             if(otherThing.variant === EnumThingVariant.enemy){
-              if(magXY < thing.size.halfSizeW + otherThing.size.halfSizeW){
-                distanceX = -omx;
-                distanceY = -omy;
-              } else {
-                distanceX = 0;
-                distanceY = 0;
-              } 
-            }
+              if(thing.targetCollisionLayer.intersection(otherThing.collisionLayer).size){
+                if(magXY < thing.size.halfSizeW + otherThing.size.halfSizeW){
+                  distanceX = -omx;
+                  distanceY = -omy;
+                } else {
+                  otherThing.position.x += distanceX/2;
+                  otherThing.position.y += distanceY/2;
+                  distanceX = distanceX/2;
+                  distanceY = distanceY/2;
 
+                } 
+              }
+            }
+            break;
         }
       }
     }
@@ -845,11 +878,7 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
                 otherThing.slowed = 0.5;
               }
             }
-
-            
-
           }
-
         })
         break;
     }
@@ -876,11 +905,11 @@ function renderUI(ctx: CanvasRenderingContext2D, player: Thing){
   ctx.fillStyle = gradient;
 
   ctx.fillRect(20, 20, 200*percentage, 20)
-
-
 }
 
-function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number, things: Thing[],player: Thing) {
+
+
+function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number, things: Thing[], player: Thing, activeZones: Set<Zone>) {
   const elapsed = timestamp - prevTime;
   const elapsedS = elapsed / 1000;
   processPlayerInput(player, things);
@@ -903,6 +932,13 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number,
       }
     };
 
+    map.forEach((zone) => {
+      if(zoneCollisionDetector(player, zone.position)){
+        activeZones.add(zone);
+      } else {
+        activeZones.delete(zone);
+      }
+    });
 
     //RENDER
     ctx.clearRect(0,0, defaultZoneSize.w, defaultZoneSize.h);
@@ -918,7 +954,7 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number,
     renderUI(ctx, player);
   }
 
-  if(RUNNING) requestAnimationFrame((ts) => run(ctx, timestamp, ts, things, player));
+  if(RUNNING) requestAnimationFrame((ts) => run(ctx, timestamp, ts, things, player, activeZones));
 }
 
 function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D){
@@ -964,14 +1000,14 @@ function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D){
     if(keyMaps.has(event.code))
       activeKeys.add(event.code);
     if(event.code === 'KeyR'){
-
+      console.log("r")
         if(!RUNNING){ 
           init(ctx, false);
           getDebug("");
         }
         else {
           getDebug("Press R again to restart game.");
-         // RUNNING = false;
+          RUNNING = false;
         }
     }
   });
@@ -990,11 +1026,12 @@ function init(ctx: CanvasRenderingContext2D, pause: boolean) {
   RUNNING = true;
   const player = createPlayer();
   const things = [player];
+  const activeZones = new Set<Zone>([map[5]]);
   paused = pause;
 
   generateRandomEnemies(things, player, INITTHINGSNOTPLAYER);
 
-  requestAnimationFrame((timestamp) => run(ctx, 0, timestamp, things, player));
+  requestAnimationFrame((timestamp) => run(ctx, 0, timestamp, things, player, activeZones));
   return 0;
 }
 
