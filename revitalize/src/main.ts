@@ -112,6 +112,12 @@ type Zone = {
   size: BgSize
 };
 
+type Wave = {
+  regular: number,
+  fast: number,
+  ranged: number
+}
+
 let GLOBALID = 1;
 let RUNNING = true;
 
@@ -132,6 +138,8 @@ const map = [
   {color: "midnightblue", position: {x:1, y:2}, size: defaultZoneSize},
   {color: "midnightblue", position: {x:2, y:2}, size: defaultZoneSize}
 ];
+
+const allZones = new Set(map);
 
 
 function getZoneEdges({x, y}: Position){
@@ -282,7 +290,7 @@ function swapWithLastAndPop(things: Thing[], idx: number){
   things.pop();
 }
 
-function randomThingCreator(things: Thing[], playerTarget: Thing){
+function randomThingCreator(things: Thing[], playerTarget: Thing, position: Position){
   GLOBALID++;
   things.push(
     {
@@ -327,7 +335,7 @@ function randomThingCreator(things: Thing[], playerTarget: Thing){
       nmy: 0,
       distanceX: 0,
       distanceY: 0,
-      position: {x: Math.floor(Math.random()*defaultZoneSize.w), y: Math.floor(Math.random()*defaultZoneSize.h)},
+      position: {x: position.x, y: position.y},
       size: {h: 20, w: 20, halfSizeH: 10, halfSizeW: 10},
       collisionLayer: new Set([1]),
       targetCollisionLayer: new Set([0, 1]),
@@ -339,7 +347,7 @@ function randomThingCreator(things: Thing[], playerTarget: Thing){
   )
 }
 
-function randomFastThingCreator(things: Thing[], playerTarget: Thing){
+function randomFastThingCreator(things: Thing[], playerTarget: Thing, position: Position){
   GLOBALID++;
   things.push(
     {
@@ -384,7 +392,7 @@ function randomFastThingCreator(things: Thing[], playerTarget: Thing){
       nmy: 0,
       distanceX: 0,
       distanceY: 0,
-      position: {x: Math.floor(Math.random()*defaultZoneSize.w), y: Math.floor(Math.random()*defaultZoneSize.h)},
+      position: {x: position.x, y: position.y},
       size: {h: 10, w: 10, halfSizeH: 5, halfSizeW: 5},
       collisionLayer: new Set([2]),
       targetCollisionLayer: new Set([0]),
@@ -396,7 +404,7 @@ function randomFastThingCreator(things: Thing[], playerTarget: Thing){
   )
 }
 
-function randomRangedThingCreator(things: Thing[], playerTarget: Thing){
+function randomRangedThingCreator(things: Thing[], playerTarget: Thing, position: Position){
   GLOBALID++;
   things.push(
     {
@@ -441,7 +449,7 @@ function randomRangedThingCreator(things: Thing[], playerTarget: Thing){
       nmy: 0,
       distanceX: 0,
       distanceY: 0,
-      position: {x: Math.floor(Math.random()*defaultZoneSize.w), y: Math.floor(Math.random()*defaultZoneSize.h)},
+      position: {x: position.x, y: position.y},
       size: {h: 16, w: 16, halfSizeH: 5, halfSizeW: 5},
       collisionLayer: new Set([4]),
       targetCollisionLayer: new Set([0, 4]),
@@ -453,15 +461,25 @@ function randomRangedThingCreator(things: Thing[], playerTarget: Thing){
   )
 }
 
-function generateRandomEnemies(things: Thing[], player:Thing,  count: number){
+function generateRandomEnemiesAtPosition(things: Thing[], player:Thing, activeZones: Set<Zone>, count: number){
+  const inactiveZones = allZones.difference(activeZones);
+  const zonesSize = inactiveZones.size;
+  console.log(inactiveZones);
+
   for(let i = 0; i < count; i++){
+    const randomIdx = Math.floor(Math.random() * zonesSize);
+
+    const targetZone = Array.from(inactiveZones)[randomIdx];
+    const {t,l,r,b}= getZoneEdges(targetZone.position);
+    const targetPosition = {x: l + ((r - l)/2) + ((Math.random()*100)-50), y: t + ((b - t)/2) + ((Math.random()*100)-50)};
+
     const random = Math.random();
-    if(random < 0.3) randomThingCreator(things, player);
+    if(random < 0.3) randomThingCreator(things, player, targetPosition);
     else if (random < 0.66 && random >= 0.3){
 
-      randomRangedThingCreator(things, player);
+      randomRangedThingCreator(things, player, targetPosition);
     }
-    else randomFastThingCreator(things, player);
+    else randomFastThingCreator(things, player, targetPosition);
   }
 }
 
@@ -511,7 +529,7 @@ function drawBg(
   const {displaceX, displaceY} = playerZoneDisplace(player);
   ctx.fillStyle = color;
   ctx.translate(x - displaceX, y - displaceY);
-  ctx.fillRect(0, 0, w, h);
+  ctx.fillRect(0, 0, w + 1, h + 1);
   ctx.translate(-(x - displaceX), -(y - displaceY));
 
 }
@@ -827,6 +845,7 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
       case EnumThingVariant.enemy:
         if(thing.hp <= 0){
           thing.active = false;
+
         } else {
           const tAtk = thing.attack[0];
           tAtk.elapsed += elapsedS;
@@ -1000,7 +1019,6 @@ function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D){
     if(keyMaps.has(event.code))
       activeKeys.add(event.code);
     if(event.code === 'KeyR'){
-      console.log("r")
         if(!RUNNING){ 
           init(ctx, false);
           getDebug("");
@@ -1026,10 +1044,10 @@ function init(ctx: CanvasRenderingContext2D, pause: boolean) {
   RUNNING = true;
   const player = createPlayer();
   const things = [player];
-  const activeZones = new Set<Zone>([map[5]]);
+  const activeZones = new Set<Zone>([map[4]]);
   paused = pause;
 
-  generateRandomEnemies(things, player, INITTHINGSNOTPLAYER);
+  generateRandomEnemiesAtPosition(things, player, activeZones, INITTHINGSNOTPLAYER);
 
   requestAnimationFrame((timestamp) => run(ctx, 0, timestamp, things, player, activeZones));
   return 0;
