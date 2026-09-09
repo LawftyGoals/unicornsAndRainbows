@@ -34,15 +34,6 @@ type BgSize = {
   w: number
 };
 
-
-const EnumThingVariant = {
-  player: 0,
-  enemy: 1,
-  wall: 2,
-  attack: 3
-};
-
-
 type AttackVariantKey = keyof typeof EnumAttackVariant;
 type AttackVariant = typeof EnumAttackVariant[AttackVariantKey];
 
@@ -106,6 +97,22 @@ type Thing = {
   rotation: number,
 }
 
+const EnumThingVariant = {
+  player: 0,
+  enemy: 1,
+  wall: 2,
+  attack: 3
+};
+
+const EnumEnemyVariant = {
+  regular: 0,
+  fast: 1,
+  ranged: 2
+}
+
+type EnemyVariantKey = keyof typeof EnumEnemyVariant;
+type EnemyVariant = typeof EnumEnemyVariant[EnemyVariantKey];
+
 type Zone = {
   color: string,
   position: Position,
@@ -115,7 +122,14 @@ type Zone = {
 type Wave = {
   regular: number,
   fast: number,
-  ranged: number
+  ranged: number,
+  regularKilled: number,
+  fastKilled: number,
+  rangedKilled: number,
+  concurrentMax: number,
+  regularCurrent: number,
+  fastCurrent: number,
+  rangedCurrent: number
 }
 
 let GLOBALID = 1;
@@ -152,11 +166,36 @@ function getZoneEdges({x, y}: Position){
 
 }
 
-const wave = {
+const wave: Wave = {
   regular: 10,
   fast: 20,
-  ranged: 5
+  ranged: 5,
+  regularKilled: 0,
+  fastKilled: 0,
+  rangedKilled: 0,
+  concurrentMax: 20,
+  regularCurrent: 0,
+  fastCurrent: 0,
+  rangedCurrent: 0
 };
+
+
+function createWaves(){
+  return [
+    {
+      regular: 10,
+      fast: 20,
+      ranged: 5,
+      regularKilled: 0,
+      fastKilled: 0,
+      rangedKilled: 0,
+      concurrentMax: 20,
+      regularCurrent: 0,
+      fastCurrent: 0,
+      rangedCurrent: 0
+    }
+  ];
+}
 
 let paused = true;
 
@@ -461,10 +500,10 @@ function randomRangedThingCreator(things: Thing[], playerTarget: Thing, position
   )
 }
 
-function generateRandomEnemiesAtPosition(things: Thing[], player:Thing, activeZones: Set<Zone>, count: number){
+
+function generateRandomEnemiesAtPosition(things: Thing[], player:Thing, activeZones: Set<Zone>, count: number, wave: Wave, variant: EnemyVariant){
   const inactiveZones = allZones.difference(activeZones);
   const zonesSize = inactiveZones.size;
-  console.log(inactiveZones);
 
   for(let i = 0; i < count; i++){
     const randomIdx = Math.floor(Math.random() * zonesSize);
@@ -473,14 +512,22 @@ function generateRandomEnemiesAtPosition(things: Thing[], player:Thing, activeZo
     const {t,l,r,b}= getZoneEdges(targetZone.position);
     const targetPosition = {x: l + ((r - l)/2) + ((Math.random()*100)-50), y: t + ((b - t)/2) + ((Math.random()*100)-50)};
 
-    const random = Math.random();
-    if(random < 0.3) randomThingCreator(things, player, targetPosition);
-    else if (random < 0.66 && random >= 0.3){
+    if(variant === EnumEnemyVariant.regular){
+      randomThingCreator(things, player, targetPosition);
+      wave.
+    }
+    else if (variant === EnumEnemyVariant.ranged){
 
       randomRangedThingCreator(things, player, targetPosition);
     }
     else randomFastThingCreator(things, player, targetPosition);
   }
+}
+
+function handleWave(waves: Wave[], currentWaveIdx: number){
+  const currentWave = waves[currentWaveIdx];
+  
+
 }
 
 const activeKeys = new Set();
@@ -813,7 +860,7 @@ function rotatospotatos(thing: Thing, position: Position, rotationTarget: Positi
 }
 
 
-function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: number){
+function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: number, TOTALKILLS: {count: number}){
   if(thing.active){
     switch(thing.variant){
       case EnumThingVariant.player:
@@ -845,6 +892,7 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
       case EnumThingVariant.enemy:
         if(thing.hp <= 0){
           thing.active = false;
+          TOTALKILLS.count++;
 
         } else {
           const tAtk = thing.attack[0];
@@ -906,7 +954,8 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
   }
 }
 
-function renderUI(ctx: CanvasRenderingContext2D, player: Thing){
+function renderUI(ctx: CanvasRenderingContext2D, player: Thing, TOTALKILLS: {count: number}){
+  //HP
   const maxHP = player.maxHp;
   const hp = player.hp;
   const percentage = hp / maxHP;
@@ -924,18 +973,25 @@ function renderUI(ctx: CanvasRenderingContext2D, player: Thing){
   ctx.fillStyle = gradient;
 
   ctx.fillRect(20, 20, 200*percentage, 20)
+  
+  //KILLCOUNT
+  ctx.textAlign = "end";
+  ctx.font = "48px serif";
+  ctx.fillText(TOTALKILLS.count.toString(), defaultZoneSize.w - 200, 50);
+
+
 }
 
 
 
-function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number, things: Thing[], player: Thing, activeZones: Set<Zone>) {
+function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number, things: Thing[], player: Thing, activeZones: Set<Zone>, TOTALKILLS: {count: number}) {
   const elapsed = timestamp - prevTime;
   const elapsedS = elapsed / 1000;
   processPlayerInput(player, things);
   if(!paused){
 
     things.forEach((thing, idx) => {
-      action(elapsedS, thing, things, idx);
+      action(elapsedS, thing, things, idx, TOTALKILLS);
     });
 
     //CALCULATIONS AND PHYSICS
@@ -970,10 +1026,10 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number,
       drawThing(ctx, thing, thing.position, displace);
     };
 
-    renderUI(ctx, player);
+    renderUI(ctx, player, TOTALKILLS);
   }
 
-  if(RUNNING) requestAnimationFrame((ts) => run(ctx, timestamp, ts, things, player, activeZones));
+  if(RUNNING) requestAnimationFrame((ts) => run(ctx, timestamp, ts, things, player, activeZones, TOTALKILLS));
 }
 
 function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D){
@@ -1045,11 +1101,14 @@ function init(ctx: CanvasRenderingContext2D, pause: boolean) {
   const player = createPlayer();
   const things = [player];
   const activeZones = new Set<Zone>([map[4]]);
+  const TOTALKILLS = {count: 0};
+
   paused = pause;
+
 
   generateRandomEnemiesAtPosition(things, player, activeZones, INITTHINGSNOTPLAYER);
 
-  requestAnimationFrame((timestamp) => run(ctx, 0, timestamp, things, player, activeZones));
+  requestAnimationFrame((timestamp) => run(ctx, 0, timestamp, things, player, activeZones, TOTALKILLS));
   return 0;
 }
 
