@@ -75,6 +75,7 @@ type Thing = {
   id: number,
   active: boolean,
   variant: ThingVariant,
+  subVariant: EnemyVariant,
   hp: number,
   maxHp: number,
   attack: Attack[],
@@ -105,6 +106,7 @@ const EnumThingVariant = {
 };
 
 const EnumEnemyVariant = {
+  non: -1,
   regular: 0,
   fast: 1,
   ranged: 2
@@ -120,22 +122,21 @@ type Zone = {
 };
 
 type Wave = {
-  regular: number,
-  fast: number,
-  ranged: number,
+  regularTarget: number,
+  fastTarget: number,
+  rangedTarget: number,
+  concurrentMax: number,
+  regularReleased: number,
+  fastReleased: number,
+  rangedReleased: number,
   regularKilled: number,
   fastKilled: number,
   rangedKilled: number,
-  concurrentMax: number,
-  regularCurrent: number,
-  fastCurrent: number,
-  rangedCurrent: number
+
 }
 
 let GLOBALID = 1;
 let RUNNING = true;
-
-const INITTHINGSNOTPLAYER = 100;
 
 const defaultZoneSize = {h: 720, w: 1280};
 
@@ -166,33 +167,67 @@ function getZoneEdges({x, y}: Position){
 
 }
 
-const wave: Wave = {
-  regular: 10,
-  fast: 20,
-  ranged: 5,
-  regularKilled: 0,
-  fastKilled: 0,
-  rangedKilled: 0,
-  concurrentMax: 20,
-  regularCurrent: 0,
-  fastCurrent: 0,
-  rangedCurrent: 0
-};
-
-
 function createWaves(){
   return [
     {
-      regular: 10,
-      fast: 20,
-      ranged: 5,
+      regularTarget: 10,
+      fastTarget: 20,
+      rangedTarget: 5,
+      concurrentMax: 10,
+      regularReleased: 0,
+      fastReleased: 0,
+      rangedReleased: 0,
       regularKilled: 0,
       fastKilled: 0,
       rangedKilled: 0,
+    },
+    {
+      regularTarget: 20,
+      fastTarget: 30,
+      rangedTarget: 10,
       concurrentMax: 20,
-      regularCurrent: 0,
-      fastCurrent: 0,
-      rangedCurrent: 0
+      regularReleased: 0,
+      fastReleased: 0,
+      rangedReleased: 0,
+      regularKilled: 0,
+      fastKilled: 0,
+      rangedKilled: 0,
+    },
+    {
+      regularTarget: 30,
+      fastTarget: 40,
+      rangedTarget: 20,
+      concurrentMax: 30,
+      regularReleased: 0,
+      fastReleased: 0,
+      rangedReleased: 0,
+      regularKilled: 0,
+      fastKilled: 0,
+      rangedKilled: 0,
+    },
+    {
+      regularTarget: 40,
+      fastTarget: 50,
+      rangedTarget: 30,
+      concurrentMax: 40,
+      regularReleased: 0,
+      fastReleased: 0,
+      rangedReleased: 0,
+      regularKilled: 0,
+      fastKilled: 0,
+      rangedKilled: 0,
+    },
+    {
+      regularTarget: 50,
+      fastTarget: 60,
+      rangedTarget: 40,
+      concurrentMax: 50,
+      regularReleased: 0,
+      fastReleased: 0,
+      rangedReleased: 0,
+      regularKilled: 0,
+      fastKilled: 0,
+      rangedKilled: 0,
     }
   ];
 }
@@ -218,6 +253,7 @@ function createAttack(newAttack: Attack ): Thing{
     id: GLOBALID,
     active: true,
     variant: EnumThingVariant.attack,
+    subVariant:EnumEnemyVariant.non,
     hp: 1,
     maxHp: 0,
     attack: [newAttack],
@@ -249,6 +285,7 @@ function createPlayer(): Thing {
     id: 0,
     active: true,
     variant: EnumThingVariant.player,
+    subVariant: EnumEnemyVariant.non,
     hp: 500,
     maxHp: 500,
     attack: [
@@ -336,6 +373,7 @@ function randomThingCreator(things: Thing[], playerTarget: Thing, position: Posi
       id: GLOBALID,
       active: true,
       variant: EnumThingVariant.enemy,
+      subVariant: EnumEnemyVariant.regular,
       hp: 50,
       maxHp: 50,
       attack: [{ 
@@ -393,6 +431,7 @@ function randomFastThingCreator(things: Thing[], playerTarget: Thing, position: 
       id: GLOBALID,
       active: true,
       variant: EnumThingVariant.enemy,
+      subVariant: EnumEnemyVariant.fast,
       hp: 10,
       maxHp: 10,
       attack: [{ 
@@ -450,6 +489,7 @@ function randomRangedThingCreator(things: Thing[], playerTarget: Thing, position
       id: GLOBALID,
       active: true,
       variant: EnumThingVariant.enemy,
+      subVariant: EnumEnemyVariant.ranged,
       hp: 10,
       maxHp: 10,
       attack: [{ 
@@ -501,11 +541,11 @@ function randomRangedThingCreator(things: Thing[], playerTarget: Thing, position
 }
 
 
-function generateRandomEnemiesAtPosition(things: Thing[], player:Thing, activeZones: Set<Zone>, count: number, wave: Wave, variant: EnemyVariant){
+function generateRandomEnemiesAtPosition(GAMEDATA: GameData, variant: EnemyVariant){
+  const {activeZones, player, things} = GAMEDATA;
   const inactiveZones = allZones.difference(activeZones);
   const zonesSize = inactiveZones.size;
 
-  for(let i = 0; i < count; i++){
     const randomIdx = Math.floor(Math.random() * zonesSize);
 
     const targetZone = Array.from(inactiveZones)[randomIdx];
@@ -514,18 +554,56 @@ function generateRandomEnemiesAtPosition(things: Thing[], player:Thing, activeZo
 
     if(variant === EnumEnemyVariant.regular){
       randomThingCreator(things, player, targetPosition);
-      wave.
     }
     else if (variant === EnumEnemyVariant.ranged){
 
       randomRangedThingCreator(things, player, targetPosition);
     }
     else randomFastThingCreator(things, player, targetPosition);
-  }
 }
 
-function handleWave(waves: Wave[], currentWaveIdx: number){
-  const currentWave = waves[currentWaveIdx];
+function waveHandler(GAMEDATA: GameData){
+  const {
+    regularTarget, 
+    rangedTarget, 
+    fastTarget, 
+    concurrentMax,
+    regularReleased,
+    fastReleased,
+    rangedReleased,
+    regularKilled,
+    fastKilled,
+    rangedKilled } = GAMEDATA.waves[GAMEDATA.currentWaveIdx];
+  const currentWave = GAMEDATA.waves[GAMEDATA.currentWaveIdx];
+
+  if(regularTarget === regularKilled && rangedTarget === rangedKilled && fastTarget === fastKilled){
+    GAMEDATA.currentWaveIdx++;
+  } else if (concurrentMax > GAMEDATA.ENEMYCOUNTS.currentAlive 
+             && (regularTarget > regularReleased || fastTarget > fastReleased || rangedTarget > rangedReleased)){
+    const enemiesNeeded = concurrentMax - GAMEDATA.ENEMYCOUNTS.currentAlive;
+    const enemyTypes = new Set<EnemyVariant>([EnumEnemyVariant.regular, EnumEnemyVariant.fast, EnumEnemyVariant.ranged]);
+    for(let i = 0; i < enemiesNeeded; i++){
+      if(currentWave.regularReleased >= regularTarget) enemyTypes.delete(EnumEnemyVariant.regular); 
+      if(currentWave.fastReleased >= fastTarget) enemyTypes.delete(EnumEnemyVariant.fast); 
+      if(currentWave.rangedReleased >= rangedTarget) enemyTypes.delete(EnumEnemyVariant.ranged); 
+      const randomChoice = Math.floor(Math.random() * enemyTypes.size);
+      const chosenEnemyType = Array.from(enemyTypes)[randomChoice];
+      switch(chosenEnemyType){
+        case EnumEnemyVariant.regular:
+          currentWave.regularReleased++;
+          break;
+        case EnumEnemyVariant.ranged:
+          currentWave.rangedReleased++;
+          break;
+        case EnumEnemyVariant.fast:
+          currentWave.fastReleased++;
+          break;
+      }
+      GAMEDATA.ENEMYCOUNTS.currentAlive++;
+
+      generateRandomEnemiesAtPosition(GAMEDATA, chosenEnemyType);
+    }
+  }
   
 
 }
@@ -860,7 +938,7 @@ function rotatospotatos(thing: Thing, position: Position, rotationTarget: Positi
 }
 
 
-function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: number, TOTALKILLS: {count: number}){
+function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: number, GAMEDATA: GameData){
   if(thing.active){
     switch(thing.variant){
       case EnumThingVariant.player:
@@ -892,8 +970,19 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
       case EnumThingVariant.enemy:
         if(thing.hp <= 0){
           thing.active = false;
-          TOTALKILLS.count++;
-
+          GAMEDATA.ENEMYCOUNTS.totalKilled++;
+          GAMEDATA.ENEMYCOUNTS.currentAlive--;
+          switch(thing.subVariant){
+            case EnumEnemyVariant.regular:
+              GAMEDATA.waves[GAMEDATA.currentWaveIdx].regularKilled++;
+              break;
+            case EnumEnemyVariant.fast:
+              GAMEDATA.waves[GAMEDATA.currentWaveIdx].fastKilled++;
+              break;
+            case EnumEnemyVariant.ranged:
+              GAMEDATA.waves[GAMEDATA.currentWaveIdx].rangedKilled++;
+              break;
+          }
         } else {
           const tAtk = thing.attack[0];
           tAtk.elapsed += elapsedS;
@@ -954,7 +1043,7 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
   }
 }
 
-function renderUI(ctx: CanvasRenderingContext2D, player: Thing, TOTALKILLS: {count: number}){
+function renderUI(ctx: CanvasRenderingContext2D, player: Thing, GAMEDATA: GameData){
   //HP
   const maxHP = player.maxHp;
   const hp = player.hp;
@@ -977,21 +1066,27 @@ function renderUI(ctx: CanvasRenderingContext2D, player: Thing, TOTALKILLS: {cou
   //KILLCOUNT
   ctx.textAlign = "end";
   ctx.font = "48px serif";
-  ctx.fillText(TOTALKILLS.count.toString(), defaultZoneSize.w - 200, 50);
-
+  ctx.fillText(GAMEDATA.ENEMYCOUNTS.totalKilled.toString(), defaultZoneSize.w - 50, 50);
+  ctx.textAlign = "center";
+  ctx.fillText(`Wave: ${GAMEDATA.currentWaveIdx + 1}`, defaultZoneSize.w/2, 50);
 
 }
 
 
 
-function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number, things: Thing[], player: Thing, activeZones: Set<Zone>, TOTALKILLS: {count: number}) {
+function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number, GAMEDATA: GameData) {
+  const {player, things, activeZones } = GAMEDATA; 
   const elapsed = timestamp - prevTime;
   const elapsedS = elapsed / 1000;
   processPlayerInput(player, things);
   if(!paused){
 
+
+    waveHandler(GAMEDATA, );
+
+
     things.forEach((thing, idx) => {
-      action(elapsedS, thing, things, idx, TOTALKILLS);
+      action(elapsedS, thing, things, idx, GAMEDATA);
     });
 
     //CALCULATIONS AND PHYSICS
@@ -1026,10 +1121,10 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number,
       drawThing(ctx, thing, thing.position, displace);
     };
 
-    renderUI(ctx, player, TOTALKILLS);
+    renderUI(ctx, player, GAMEDATA);
   }
 
-  if(RUNNING) requestAnimationFrame((ts) => run(ctx, timestamp, ts, things, player, activeZones, TOTALKILLS));
+  if(RUNNING) requestAnimationFrame((ts) => run(ctx, timestamp, ts, GAMEDATA));
 }
 
 function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D){
@@ -1096,19 +1191,39 @@ function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D){
 }
 
 
+type GameData = {
+  player: Thing,
+  things: Thing[],
+  activeZones: Set<Zone>,
+  ENEMYCOUNTS: {
+    totalKilled: number,
+    currentAlive: number,
+  }
+  currentWaveIdx: number,
+  waves: Wave[],
+
+}
+
 function init(ctx: CanvasRenderingContext2D, pause: boolean) {
   RUNNING = true;
-  const player = createPlayer();
-  const things = [player];
-  const activeZones = new Set<Zone>([map[4]]);
-  const TOTALKILLS = {count: 0};
+  const initPlayer = createPlayer()
+  const GAMEDATA = {
+    player:  initPlayer,
+    things: [initPlayer],
+    activeZones: new Set<Zone>([map[4]]),
+    ENEMYCOUNTS: {
+      totalKilled: 0,
+      currentAlive: 0
+    },
+    currentWaveIdx: 0,
+    waves: createWaves(),
+  };
 
   paused = pause;
 
 
-  generateRandomEnemiesAtPosition(things, player, activeZones, INITTHINGSNOTPLAYER);
 
-  requestAnimationFrame((timestamp) => run(ctx, 0, timestamp, things, player, activeZones, TOTALKILLS));
+  requestAnimationFrame((timestamp) => run(ctx, 0, timestamp, GAMEDATA));
   return 0;
 }
 
