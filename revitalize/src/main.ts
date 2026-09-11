@@ -303,7 +303,7 @@ function createPlayer(): Thing {
         size: {w: 60, h: 60, halfSizeW: 30, halfSizeH: 30}, 
         collisionLayer: new Set([3]), 
         targetCollisionLayer: new Set([1, 2, 4]), 
-        color: "rgba(10, 32, 255, 0.3)", 
+        color: "rgba(238, 255, 84, 0.8)", 
         targetPosition: {} as Position, 
         rotationTarget: {} as Position, 
         rotation: 0, 
