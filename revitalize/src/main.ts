@@ -53,6 +53,7 @@ type Attack = {
   collisionLayer: Set<number>,
   targetCollisionLayer: Set<number>,
   color: string,
+  animation: AnimationValues,
   targetPosition: Position,
   rotationTarget: Position,
   rotation: number,
@@ -67,6 +68,20 @@ const EnumAttackVariant = {
   ranged: 1
 }
 
+
+type BitmapLoc = {
+  sx: number,
+  sy: number,
+  sw: number,
+  sh: number,
+}
+
+type AnimationValues = {
+  elapsed: number,
+  standStill: BitmapLoc,
+  animateStart: BitmapLoc,
+  frameLength: number,
+}
   
 type ThingVariantKey = keyof typeof EnumThingVariant;
 type ThingVariant = typeof EnumThingVariant[ThingVariantKey];
@@ -85,6 +100,7 @@ type Thing = {
   slowed: number,
   moving: boolean,
   position: Position,
+  facingEast: boolean,
   nmx: number,
   nmy: number,
   distanceX: number,
@@ -93,6 +109,7 @@ type Thing = {
   collisionLayer: Set<number>,
   targetCollisionLayer: Set<number>,
   color: string,
+  animation: AnimationValues,
   targetPosition: Position,
   rotationTarget: Position,
   rotation: number,
@@ -171,9 +188,9 @@ function createWaves(){
   return [
     {
       regularTarget: 10,
-      fastTarget: 20,
-      rangedTarget: 5,
-      concurrentMax: 10,
+      fastTarget: 0,
+      rangedTarget: 0,
+      concurrentMax: 5,
       regularReleased: 0,
       fastReleased: 0,
       rangedReleased: 0,
@@ -182,10 +199,46 @@ function createWaves(){
       rangedKilled: 0,
     },
     {
-      regularTarget: 20,
-      fastTarget: 30,
+      regularTarget: 0,
+      fastTarget: 10,
+      rangedTarget: 0,
+      concurrentMax: 5,
+      regularReleased: 0,
+      fastReleased: 0,
+      rangedReleased: 0,
+      regularKilled: 0,
+      fastKilled: 0,
+      rangedKilled: 0,
+    },
+    {
+      regularTarget: 0,
+      fastTarget: 0,
       rangedTarget: 10,
-      concurrentMax: 20,
+      concurrentMax: 5,
+      regularReleased: 0,
+      fastReleased: 0,
+      rangedReleased: 0,
+      regularKilled: 0,
+      fastKilled: 0,
+      rangedKilled: 0,
+    },
+    {
+      regularTarget: 10,
+      fastTarget: 10,
+      rangedTarget: 5,
+      concurrentMax: 8,
+      regularReleased: 0,
+      fastReleased: 0,
+      rangedReleased: 0,
+      regularKilled: 0,
+      fastKilled: 0,
+      rangedKilled: 0,
+    },
+    {
+      regularTarget: 15,
+      fastTarget: 20,
+      rangedTarget: 10,
+      concurrentMax: 10,
       regularReleased: 0,
       fastReleased: 0,
       rangedReleased: 0,
@@ -197,7 +250,7 @@ function createWaves(){
       regularTarget: 30,
       fastTarget: 40,
       rangedTarget: 20,
-      concurrentMax: 30,
+      concurrentMax: 20,
       regularReleased: 0,
       fastReleased: 0,
       rangedReleased: 0,
@@ -209,7 +262,7 @@ function createWaves(){
       regularTarget: 40,
       fastTarget: 50,
       rangedTarget: 30,
-      concurrentMax: 40,
+      concurrentMax: 30,
       regularReleased: 0,
       fastReleased: 0,
       rangedReleased: 0,
@@ -221,6 +274,18 @@ function createWaves(){
       regularTarget: 50,
       fastTarget: 60,
       rangedTarget: 40,
+      concurrentMax: 40,
+      regularReleased: 0,
+      fastReleased: 0,
+      rangedReleased: 0,
+      regularKilled: 0,
+      fastKilled: 0,
+      rangedKilled: 0,
+    },
+    {
+      regularTarget: Infinity,
+      fastTarget: Infinity,
+      rangedTarget: Infinity,
       concurrentMax: 50,
       regularReleased: 0,
       fastReleased: 0,
@@ -228,7 +293,8 @@ function createWaves(){
       regularKilled: 0,
       fastKilled: 0,
       rangedKilled: 0,
-    }
+    },
+
   ];
 }
 
@@ -245,7 +311,7 @@ const mousePosition = { x: defaultZoneSize.w/2, y: defaultZoneSize.h/2 };
 * 4 - ranged enemy
 */
 
-function createAttack(newAttack: Attack ): Thing{
+function createAttack(newAttack: Attack): Thing{
   newAttack.thingAttacked.clear();
   
   GLOBALID++;
@@ -263,6 +329,7 @@ function createAttack(newAttack: Attack ): Thing{
     slowed: 0,
     moving: newAttack.moving,
     position: newAttack.position,
+    facingEast: true,
     distanceX: 0,
     distanceY: 0,
     nmx: 0,
@@ -271,6 +338,7 @@ function createAttack(newAttack: Attack ): Thing{
     collisionLayer: new Set(newAttack.collisionLayer),
     targetCollisionLayer: new Set(newAttack.targetCollisionLayer),
     color: newAttack.color,
+    animation: newAttack.animation,
     targetPosition: newAttack.targetPosition,
     rotationTarget: newAttack.rotationTarget,
     rotation: newAttack.rotation,
@@ -304,6 +372,22 @@ function createPlayer(): Thing {
         collisionLayer: new Set([3]), 
         targetCollisionLayer: new Set([1, 2, 4]), 
         color: "rgba(238, 255, 84, 0.8)", 
+        animation: {
+          elapsed: 0,
+          standStill: {
+            sx:0,
+            sy:78,
+            sw:60,
+            sh:60,
+          },
+          animateStart: {
+            sx:0,
+            sy:78,
+            sw:60,
+            sh:60,
+          },
+          frameLength: 1000
+        },
         targetPosition: {} as Position, 
         rotationTarget: {} as Position, 
         rotation: 0, 
@@ -326,6 +410,22 @@ function createPlayer(): Thing {
         collisionLayer: new Set([3]), 
         targetCollisionLayer: new Set([1, 2, 4]), 
         color: "rgba(244, 1, 32, 0.3)", 
+        animation: {
+          elapsed: 0,
+          standStill: {
+            sx:61,
+            sy:78,
+            sw:10,
+            sh:10,
+          },
+          animateStart: {
+            sx:61,
+            sy:78,
+            sw:10,
+            sh:10,
+          },
+          frameLength: 1000
+        },
         targetPosition: {} as Position, 
         rotationTarget: {} as Position, 
         rotation: 0, 
@@ -344,6 +444,7 @@ function createPlayer(): Thing {
       x: (3 * defaultZoneSize.w) / 2,
       y: (3 * defaultZoneSize.h) / 2,
     },
+    facingEast: true,
     collisionLayer: new Set([0]),
     targetCollisionLayer: new Set([1, 2]),
     nmx: 0,
@@ -352,6 +453,22 @@ function createPlayer(): Thing {
     distanceY: 0,
     size: playerSize,
     color: "red",
+    animation: {
+      elapsed: 0,
+      standStill: {
+        sx:0,
+        sy:0,
+        sw:32,
+        sh:32,
+      },
+      animateStart: {
+        sx:32,
+        sy:0,
+        sw:32,
+        sh:32,
+      },
+      frameLength: 1000/4
+    },
     targetPosition:  {x: defaultZoneSize.w / 2, y: defaultZoneSize.h /2},
     rotationTarget: mousePosition,
     rotation: 0,
@@ -395,7 +512,23 @@ function randomThingCreator(things: Thing[], playerTarget: Thing, position: Posi
         }, 
         collisionLayer: new Set([3]), 
         targetCollisionLayer: new Set([0]), 
-        color: "darkslategray", 
+        color: "darkslategray",
+        animation: {
+          elapsed: 0,
+          standStill: {
+            sx:71,
+            sy:78,
+            sw:20,
+            sh:20,
+          },
+          animateStart: {
+            sx:71,
+            sy:78,
+            sw:20,
+            sh:20,
+          },
+          frameLength: 1000
+        },
         targetPosition: {} as Position, 
         rotationTarget: {} as Position, 
         rotation: 0, 
@@ -413,10 +546,27 @@ function randomThingCreator(things: Thing[], playerTarget: Thing, position: Posi
       distanceX: 0,
       distanceY: 0,
       position: {x: position.x, y: position.y},
+      facingEast: true,
       size: {h: 20, w: 20, halfSizeH: 10, halfSizeW: 10},
       collisionLayer: new Set([1]),
       targetCollisionLayer: new Set([0, 1]),
       color: `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`,
+      animation: {
+        elapsed: 0,
+        standStill: {
+          sx:0,
+          sy:32,
+          sw:20,
+          sh:20,
+        },
+        animateStart: {
+          sx:20,
+          sy:32,
+          sw:20,
+          sh:20,
+        },
+        frameLength: 1000/4
+      },
       targetPosition: playerTarget.position,
       rotationTarget: playerTarget.position,
       rotation: 0,
@@ -454,6 +604,22 @@ function randomFastThingCreator(things: Thing[], playerTarget: Thing, position: 
         collisionLayer: new Set([3]), 
         targetCollisionLayer: new Set([0]), 
         color: "darkslategray", 
+        animation: {
+          elapsed: 0,
+          standStill: {
+            sx:71,
+            sy:78,
+            sw:20,
+            sh:20,
+          },
+          animateStart: {
+            sx:71,
+            sy:78,
+            sw:20,
+            sh:20,
+          },
+          frameLength: 1000
+        },
         targetPosition: {} as Position, 
         rotationTarget: {} as Position, 
         rotation: 0, 
@@ -471,10 +637,27 @@ function randomFastThingCreator(things: Thing[], playerTarget: Thing, position: 
       distanceX: 0,
       distanceY: 0,
       position: {x: position.x, y: position.y},
+      facingEast: true,
       size: {h: 10, w: 10, halfSizeH: 5, halfSizeW: 5},
       collisionLayer: new Set([2]),
       targetCollisionLayer: new Set([0]),
       color: `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`,
+      animation: {
+        elapsed: 0,
+        standStill: {
+          sx:0,
+          sy:52,
+          sw:10,
+          sh:10,
+        },
+        animateStart: {
+          sx:11,
+          sy:52,
+          sw:10,
+          sh:10,
+        },
+        frameLength: 1000/4
+      },
       targetPosition: playerTarget.position,
       rotationTarget: playerTarget.position,
       rotation: 0,
@@ -500,18 +683,34 @@ function randomRangedThingCreator(things: Thing[], playerTarget: Thing, position
         leadUp: 0.5,
         duration: Infinity, 
         ammunition: Infinity, 
-        speed: 800, 
+        speed: 700, 
         moving: true, 
         position: {} as Position, 
         size: {
-          w: 16, 
-          h: 16, 
-          halfSizeW: 8, 
-          halfSizeH: 8 
+          w: 8, 
+          h: 8, 
+          halfSizeW: 4, 
+          halfSizeH: 4 
         }, 
         collisionLayer: new Set([3]), 
         targetCollisionLayer: new Set([0]), 
         color: "darkblue", 
+        animation: {
+          elapsed: 0,
+          standStill: {
+            sx:91,
+            sy:78,
+            sw:8,
+            sh:8,
+          },
+          animateStart: {
+            sx:91,
+            sy:78,
+            sw:8,
+            sh:8,
+          },
+          frameLength: 1000
+        },
         targetPosition: {} as Position, 
         rotationTarget: {} as Position, 
         rotation: 0, 
@@ -529,10 +728,27 @@ function randomRangedThingCreator(things: Thing[], playerTarget: Thing, position
       distanceX: 0,
       distanceY: 0,
       position: {x: position.x, y: position.y},
+      facingEast: true,
       size: {h: 16, w: 16, halfSizeH: 5, halfSizeW: 5},
       collisionLayer: new Set([4]),
       targetCollisionLayer: new Set([0, 4]),
       color: `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`,
+      animation: {
+        elapsed: 0,
+        standStill: {
+          sx:0,
+          sy:62,
+          sw:16,
+          sh:16,
+        },
+        animateStart: {
+          sx:16,
+          sy:62,
+          sw:16,
+          sh:16,
+        },
+        frameLength: 1000/4
+      },
       targetPosition: playerTarget.position,
       rotationTarget: playerTarget.position,
       rotation: 0,
@@ -576,7 +792,7 @@ function waveHandler(GAMEDATA: GameData){
     rangedKilled } = GAMEDATA.waves[GAMEDATA.currentWaveIdx];
   const currentWave = GAMEDATA.waves[GAMEDATA.currentWaveIdx];
 
-  if(regularTarget === regularKilled && rangedTarget === rangedKilled && fastTarget === fastKilled){
+  if(regularTarget <= regularKilled && rangedTarget <= rangedKilled && fastTarget <= fastKilled){
     GAMEDATA.currentWaveIdx++;
   } else if (concurrentMax > GAMEDATA.ENEMYCOUNTS.currentAlive 
              && (regularTarget > regularReleased || fastTarget > fastReleased || rangedTarget > rangedReleased)){
@@ -619,19 +835,52 @@ function playerZoneDisplace(player: Thing){
 }
 
 function drawThing(
+  elapsed: number,
   ctx: CanvasRenderingContext2D,
   thing: Thing,
   position: Position,
-  displace: {displaceX: number, displaceY: number}
+  displace: {displaceX: number, displaceY: number},
+  bitmapImage: ImageBitmap,
 ) {
-  const {size: {h, w, halfSizeW, halfSizeH}, color, rotation} = thing;
+  thing.animation.elapsed = (thing.animation.elapsed + elapsed) % 1000;
+  
+  let lsx;
+  let lsy;
+  let lsw;
+  let lsh;
+    if(thing.moving){
+      const step = Math.floor(thing.animation.elapsed/ thing.animation.frameLength);
+      const {sx, sy, sh, sw} = thing.animation.animateStart;
+      lsx = sx + (sx * step);
+      lsy = sy;
+      lsw = sw;
+      lsh = sh;
+    } else {
+      const {sx, sy, sh, sw} = thing.animation.standStill;
+      lsx = sx;
+      lsy = sy;
+      lsw = sw;
+      lsh = sh;
+    }
+
+  const {size: {halfSizeW, halfSizeH}, rotation} = thing;
   const {x, y} = position;
   const {displaceX, displaceY} = displace;
-  ctx.fillStyle = color;
+  //ctx.fillStyle = color;
   ctx.translate(x - displaceX, y - displaceY);
   ctx.rotate(rotation);
   ctx.translate(-halfSizeW, -halfSizeH);
-  ctx.fillRect(0, 0, w, h);
+  //ctx.fillRect(0, 0, w, h);
+  if(thing.facingEast){
+    ctx.drawImage(bitmapImage, lsx, lsy, lsw, lsh, 0, 0, lsw, lsh);
+  }
+  else {
+    ctx.scale(-1, 1);
+    ctx.translate(-lsw, 0);
+    ctx.drawImage(bitmapImage, lsx, lsy, lsw, lsh, 0, 0, lsw, lsh);
+    ctx.translate(lsw, 0);
+    ctx.scale(-1, 1);
+  }
   ctx.translate(halfSizeW, halfSizeH);
   ctx.rotate(-(rotation));
   ctx.translate(-(x - displaceX), - (y - displaceY));
@@ -717,7 +966,7 @@ function processPlayerInput(player: Thing, things: Thing[]){
 function configureAttack(things: Thing[], thing:Thing, attackBase: Attack, displaceX:number, displaceY:number, targetPosition: Position){
   switch(attackBase.variant){
     case EnumAttackVariant.melee:
-      const {nmx, nmy} = normalizeMagnitude(thing.position, true, {x: displaceX + targetPosition.x, y: displaceY + targetPosition.y});
+      const {nmx, nmy} = normalizeMagnitude(thing.position, {x: displaceX + targetPosition.x, y: displaceY + targetPosition.y});
       const positionX = thing.position.x + (nmx * (thing.size.halfSizeW + attackBase.size.halfSizeW));
       const positionY = thing.position.y + (nmy * (thing.size.halfSizeH + attackBase.size.halfSizeH));
       const meleeAttack = {...attackBase, position: {x: positionX, y: positionY}};
@@ -743,25 +992,25 @@ function getEdges(position: Position, size: Size): Edges{
   }
 }
 
-function getDistanceToThing(position: Position, moving: boolean, targetPosition: Position){
+function getDistanceToThing(position: Position, targetPosition: Position){
 
-  const omx = moving ? (targetPosition.x - position.x) : 0;
-  const omy = moving ? (targetPosition.y - position.y) : 0;
+  const omx = (targetPosition.x - position.x) ;
+  const omy = (targetPosition.y - position.y) ;
 
   return {omx, omy}
 }
 
-function getMagnitudeXY(position: Position, moving: boolean, targetPosition: Position){
+function getMagnitudeXY(position: Position, targetPosition: Position){
 
-  const {omx, omy} = getDistanceToThing(position, moving, targetPosition);
+  const {omx, omy} = getDistanceToThing(position, targetPosition);
 
   return Math.sqrt(omx * omx + omy * omy);
 }
 
 
-function normalizeMagnitude(position: Position, moving: boolean, targetPosition: Position){
-  const omx = moving ? (targetPosition.x - position.x) : 0;
-  const omy = moving ? (targetPosition.y - position.y) : 0;
+function normalizeMagnitude(position: Position, targetPosition: Position){
+  const omx = (targetPosition.x - position.x) ;
+  const omy = (targetPosition.y - position.y) ;
   
   const magdeb = Math.sqrt(omx * omx + omy * omy);
 
@@ -772,7 +1021,7 @@ function normalizeMagnitude(position: Position, moving: boolean, targetPosition:
 }
 
 function getDistanceMovedTowardsThing(elapsedS: number, thing: Thing, targetPosition: Position){
-  const {nmx, nmy, omx, omy, magdeb} = normalizeMagnitude(thing.position, thing.moving, targetPosition);
+  const {nmx, nmy, omx, omy, magdeb} = normalizeMagnitude(thing.position, targetPosition);
 
   let velocityX = thing.speed * nmx * (1 - thing.slowed);
   let velocityY = thing.speed * nmy * (1 - thing.slowed);
@@ -814,7 +1063,6 @@ function zoneCollisionDetector(player: Thing, zonePosition: Position){
 }
 
 function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
-
   let distanceX = 0;
   let distanceY = 0;
 
@@ -834,8 +1082,8 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
       const collisionDetected = collisionDetector(thing, {x: targetPositionX, y: targetPositionY}, otherThing);
 
       if(collisionDetected){
-        const {omx, omy} = getDistanceToThing(thing.position, thing.moving, otherThing.position);
-        const magXY = getMagnitudeXY(thing.position, thing.moving, otherThing.position);
+        const {omx, omy} = getDistanceToThing(thing.position, otherThing.position);
+        const magXY = getMagnitudeXY(thing.position, otherThing.position);
 
         switch(thing.variant){
           case EnumThingVariant.player:
@@ -911,11 +1159,17 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
 
 
   if(thing.variant === EnumThingVariant.enemy && thing.attack[0].variant === EnumAttackVariant.ranged){
-    if(getMagnitudeXY(thing.position, thing.moving, thing.targetPosition) - 20 < thing.attack[0].outerRange){
+    thing.moving = true;
+    if(getMagnitudeXY(thing.position, thing.targetPosition) - 20 < thing.attack[0].outerRange){
       distanceX = 0;
       distanceY = 0;
+      thing.moving = false;
     }
   }
+
+  if(thing.facingEast && distanceX < 0) thing.facingEast = false;
+  else if(!thing.facingEast && distanceX > 0) thing.facingEast = true;
+  
 
   return {distanceX, distanceY};
 
@@ -986,7 +1240,7 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
         } else {
           const tAtk = thing.attack[0];
           tAtk.elapsed += elapsedS;
-          const distanceToPlayer = getMagnitudeXY(thing.position, thing.moving, thing.targetPosition);
+          const distanceToPlayer = getMagnitudeXY(thing.position, thing.targetPosition);
 
           if(tAtk.variant === EnumAttackVariant.ranged && tAtk.elapsed >= (tAtk.cooldown + tAtk.leadUp)){
             if(distanceToPlayer < tAtk.outerRange){
@@ -1010,7 +1264,7 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
           thing.hp = 0;
           thing.active = false;
         }
-        if(attack.variant === EnumAttackVariant.ranged && getMagnitudeXY(thing.position, thing.moving, thing.targetPosition) < 3){
+        if(attack.variant === EnumAttackVariant.ranged && getMagnitudeXY(thing.position, thing.targetPosition) < 3){
           thing.hp = 0;
           thing.active = false;
         }
@@ -1043,7 +1297,9 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
   }
 }
 
-function renderUI(ctx: CanvasRenderingContext2D, player: Thing, GAMEDATA: GameData){
+let finishElapsed = 0;
+
+function renderUI(elapsedS: number, ctx: CanvasRenderingContext2D, player: Thing, GAMEDATA: GameData){
   //HP
   const maxHP = player.maxHp;
   const hp = player.hp;
@@ -1062,6 +1318,16 @@ function renderUI(ctx: CanvasRenderingContext2D, player: Thing, GAMEDATA: GameDa
   ctx.fillStyle = gradient;
 
   ctx.fillRect(20, 20, 200*percentage, 20)
+  const topTextgradient = ctx.createLinearGradient(0, 20, 0, 48);
+  topTextgradient.addColorStop(0, "red");
+  topTextgradient.addColorStop(0.16, "orange");
+  topTextgradient.addColorStop(0.32, "yellow");
+  topTextgradient.addColorStop(0.48, "green");
+  topTextgradient.addColorStop(0.64, "blue");
+  topTextgradient.addColorStop(0.80, "indigo");
+  topTextgradient.addColorStop(1, "violet");
+  
+  ctx.fillStyle = topTextgradient;
   
   //KILLCOUNT
   ctx.textAlign = "end";
@@ -1069,6 +1335,13 @@ function renderUI(ctx: CanvasRenderingContext2D, player: Thing, GAMEDATA: GameDa
   ctx.fillText(GAMEDATA.ENEMYCOUNTS.totalKilled.toString(), defaultZoneSize.w - 50, 50);
   ctx.textAlign = "center";
   ctx.fillText(`Wave: ${GAMEDATA.currentWaveIdx + 1}`, defaultZoneSize.w/2, 50);
+
+  if(GAMEDATA.currentWaveIdx === 8 && finishElapsed <= 10){
+    finishElapsed += elapsedS;
+    ctx.font = "32px serif"
+    ctx.fillText("Congratulations, you beat the gauntlet.", defaultZoneSize.w/2, defaultZoneSize.h/3);
+    ctx.fillText("Yet, the monsters will overcome you.", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48);
+  }
 
 }
 
@@ -1082,7 +1355,7 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number,
   if(!paused){
 
 
-    waveHandler(GAMEDATA, );
+    waveHandler(GAMEDATA);
 
 
     things.forEach((thing, idx) => {
@@ -1091,14 +1364,14 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number,
 
     //CALCULATIONS AND PHYSICS
     moveThings(elapsedS, player, things);
-    rotatospotatos(player, playerCentered, player.rotationTarget);
+    //rotatospotatos(player, playerCentered, player.rotationTarget);
 
     const displace = playerZoneDisplace(player);
     for(let idx = 1; idx < (things.length); idx++){
       const thing = things[idx];
       if (thing.active){
-        if(thing.moving) moveThings(elapsedS, thing, things);
-        rotatospotatos(thing, thing.position, thing.rotationTarget);
+        moveThings(elapsedS, thing, things);
+        if(thing.variant === EnumThingVariant.attack) rotatospotatos(thing, thing.position, thing.rotationTarget);
       }
     };
 
@@ -1115,19 +1388,19 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number,
     map.forEach((zone)=> {
       drawBg(ctx, zone, player);
     });
-    drawThing(ctx, player, playerCentered, {displaceX: 0, displaceY: 0});
+    drawThing(elapsed, ctx, player, playerCentered, {displaceX: 0, displaceY: 0}, GAMEDATA.bitmapImage);
     for(let idx = 1; idx < (things.length); idx++){
       const thing = things[idx];
-      drawThing(ctx, thing, thing.position, displace);
+      drawThing(elapsed, ctx, thing, thing.position, displace, GAMEDATA.bitmapImage);
     };
 
-    renderUI(ctx, player, GAMEDATA);
+    renderUI(elapsedS, ctx, player, GAMEDATA);
   }
 
   if(RUNNING) requestAnimationFrame((ts) => run(ctx, timestamp, ts, GAMEDATA));
 }
 
-function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D){
+function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, bitmapImage: ImageBitmap){
 
   const canvasRect = canvas.getClientRects()[0];
   canvas.addEventListener("mousedown", (event => {
@@ -1171,7 +1444,7 @@ function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D){
       activeKeys.add(event.code);
     if(event.code === 'KeyR'){
         if(!RUNNING){ 
-          init(ctx, false);
+          init(ctx, false, bitmapImage);
           getDebug("");
         }
         else {
@@ -1201,10 +1474,11 @@ type GameData = {
   }
   currentWaveIdx: number,
   waves: Wave[],
+  bitmapImage: ImageBitmap
 
 }
 
-function init(ctx: CanvasRenderingContext2D, pause: boolean) {
+function init(ctx: CanvasRenderingContext2D, pause: boolean, bitmapImage: ImageBitmap) {
   RUNNING = true;
   const initPlayer = createPlayer()
   const GAMEDATA = {
@@ -1217,6 +1491,7 @@ function init(ctx: CanvasRenderingContext2D, pause: boolean) {
     },
     currentWaveIdx: 0,
     waves: createWaves(),
+    bitmapImage: bitmapImage,
   };
 
   paused = pause;
@@ -1227,7 +1502,9 @@ function init(ctx: CanvasRenderingContext2D, pause: boolean) {
   return 0;
 }
 
-function config(){
+
+
+async function config(){
   const canvas = gEI("cv") as HTMLCanvasElement | null;
   if (!canvas) return 1;
   const ctx = canvas.getContext("2d");
@@ -1237,9 +1514,27 @@ function config(){
     );
     return 1;
   }
-  addEL(canvas, ctx);
+  
+  let bitmapImage;
+  const img = new Image(); 
+  img.src = 'src/assets/fullbitmapsmaller.webp';
+  img.onload = async () =>{
+    bitmapImage = await createImageBitmap(img);
+    if(!bitmapImage) return 1;
+    addEL(canvas, ctx, bitmapImage);
+    ctx.font = "32px serif"
+    ctx.textAlign = "center";
+    ctx.fillText("Controlls:", defaultZoneSize.w/2, defaultZoneSize.h/3);
+    ctx.fillText("WASD - Movement", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48);
+    ctx.fillText("Space - Melee Attack", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 2);
+    ctx.fillText("Left Mouse Click - Ranged Atttack", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 3);
+    ctx.fillText("Shift - Speed boost", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 4);
 
-  init(ctx, true);
+
+    init(ctx, true, bitmapImage);
+  
+  };
+
   
 }
 
