@@ -155,7 +155,7 @@ type Wave = {
 let GLOBALID = 1;
 let RUNNING = true;
 
-const defaultZoneSize = {h: 720, w: 1280};
+const defaultZoneSize = {h: 768, w: 1280};
 
 const playerCentered = {x: defaultZoneSize.w/2, y:  defaultZoneSize.h/2}
 
@@ -469,7 +469,10 @@ function createPlayer(): Thing {
       },
       frameLength: 1000/4
     },
-    targetPosition:  {x: defaultZoneSize.w / 2, y: defaultZoneSize.h /2},
+    targetPosition: {
+      x: (3 * defaultZoneSize.w) / 2,
+      y: (3 * defaultZoneSize.h) / 2,
+    },
     rotationTarget: mousePosition,
     rotation: 0,
   };
@@ -698,14 +701,14 @@ function randomRangedThingCreator(things: Thing[], playerTarget: Thing, position
         animation: {
           elapsed: 0,
           standStill: {
-            sx:91,
-            sy:78,
+            sx:61,
+            sy:88,
             sw:8,
             sh:8,
           },
           animateStart: {
-            sx:91,
-            sy:78,
+            sx:61,
+            sy:88,
             sw:8,
             sh:8,
           },
@@ -840,8 +843,9 @@ function drawThing(
   thing: Thing,
   position: Position,
   displace: {displaceX: number, displaceY: number},
-  bitmapImage: ImageBitmap,
+  GAMEDATA: GameData,
 ) {
+  const bitmapImage = GAMEDATA.bitmapImage
   thing.animation.elapsed = (thing.animation.elapsed + elapsed) % 1000;
   
   let lsx;
@@ -896,7 +900,8 @@ function positionZoneConverter({x, y}: Position){
 function drawBg(
   ctx: CanvasRenderingContext2D,
   zone: Zone,
-  player: Thing
+  player: Thing,
+  GAMEDATA: GameData
 ){
   const {position, size: {h, w}, color} = zone;
   const {x, y} = positionZoneConverter(position);
@@ -904,6 +909,15 @@ function drawBg(
   ctx.fillStyle = color;
   ctx.translate(x - displaceX, y - displaceY);
   ctx.fillRect(0, 0, w + 1, h + 1);
+  for (let ay = 0; ay < 12; ay++ ){
+    for (let ax = 0; ax < 20; ax++){
+
+      ctx.translate(64*ax, 64*ay);
+      ctx.drawImage(GAMEDATA.bitmapImage, 95, 75, 65, 65, 0, 0, 65, 65);  
+      ctx.translate(-64*ax, -64*ay);
+    }
+  }
+
   ctx.translate(-(x - displaceX), -(y - displaceY));
 
 }
@@ -1353,21 +1367,15 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number,
   const elapsedS = elapsed / 1000;
   processPlayerInput(player, things);
   if(!paused){
-
-
     waveHandler(GAMEDATA);
-
 
     things.forEach((thing, idx) => {
       action(elapsedS, thing, things, idx, GAMEDATA);
     });
 
     //CALCULATIONS AND PHYSICS
-    moveThings(elapsedS, player, things);
-    //rotatospotatos(player, playerCentered, player.rotationTarget);
 
-    const displace = playerZoneDisplace(player);
-    for(let idx = 1; idx < (things.length); idx++){
+    for(let idx = 0; idx < (things.length); idx++){
       const thing = things[idx];
       if (thing.active){
         moveThings(elapsedS, thing, things);
@@ -1386,12 +1394,14 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number,
     //RENDER
     ctx.clearRect(0,0, defaultZoneSize.w, defaultZoneSize.h);
     map.forEach((zone)=> {
-      drawBg(ctx, zone, player);
+      drawBg(ctx, zone, player, GAMEDATA);
     });
-    drawThing(elapsed, ctx, player, playerCentered, {displaceX: 0, displaceY: 0}, GAMEDATA.bitmapImage);
+    drawThing(elapsed, ctx, player, playerCentered, {displaceX: 0, displaceY: 0}, GAMEDATA);
+    const displace = playerZoneDisplace(player);
     for(let idx = 1; idx < (things.length); idx++){
       const thing = things[idx];
-      drawThing(elapsed, ctx, thing, thing.position, displace, GAMEDATA.bitmapImage);
+      
+      drawThing(elapsed, ctx, thing, thing.position, displace, GAMEDATA);
     };
 
     renderUI(elapsedS, ctx, player, GAMEDATA);
@@ -1409,13 +1419,10 @@ function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, bitmapI
         activeKeys.add("ML");
         break;
       case 2:
-        //TODO: MR IS A SHIT KEY TO USE TOO MUCH FUNCTIONALITY. maybe move melee
-        //attack to e and shooting to ml?
         activeKeys.add("MR");
         break;
     }
   })); 
-
   canvas.addEventListener("mouseup", (event => {
     switch(event.button){
       case 0:
@@ -1475,7 +1482,6 @@ type GameData = {
   currentWaveIdx: number,
   waves: Wave[],
   bitmapImage: ImageBitmap
-
 }
 
 function init(ctx: CanvasRenderingContext2D, pause: boolean, bitmapImage: ImageBitmap) {
@@ -1489,15 +1495,12 @@ function init(ctx: CanvasRenderingContext2D, pause: boolean, bitmapImage: ImageB
       totalKilled: 0,
       currentAlive: 0
     },
-    currentWaveIdx: 0,
+    currentWaveIdx: 8,
     waves: createWaves(),
     bitmapImage: bitmapImage,
   };
 
   paused = pause;
-
-
-
   requestAnimationFrame((timestamp) => run(ctx, 0, timestamp, GAMEDATA));
   return 0;
 }
@@ -1529,6 +1532,8 @@ async function config(){
     ctx.fillText("Space - Melee Attack", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 2);
     ctx.fillText("Left Mouse Click - Ranged Atttack", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 3);
     ctx.fillText("Shift - Speed boost", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 4);
+    ctx.fillText("P - Pause", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 5);
+    ctx.fillText("R - Restart game (RR if not dead)", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 6);
 
 
     init(ctx, true, bitmapImage);
