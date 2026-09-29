@@ -133,7 +133,6 @@ type EnemyVariantKey = keyof typeof EnumEnemyVariant;
 type EnemyVariant = typeof EnumEnemyVariant[EnemyVariantKey];
 
 type Zone = {
-  color: string,
   position: Position,
   size: BgSize
 };
@@ -160,15 +159,15 @@ const defaultZoneSize = {h: 768, w: 1280};
 const playerCentered = {x: defaultZoneSize.w/2, y:  defaultZoneSize.h/2}
 
 const map = [
-  {color: "midnightblue", position: {x:0, y:0}, size: defaultZoneSize},
-  {color: "midnightblue", position: {x:1, y:0}, size: defaultZoneSize},
-  {color: "midnightblue", position: {x:2, y:0}, size: defaultZoneSize},
-  {color: "midnightblue", position: {x:0, y:1}, size: defaultZoneSize},
-  {color: "midnightblue", position: {x:1, y:1}, size: defaultZoneSize},
-  {color: "midnightblue", position: {x:2, y:1}, size: defaultZoneSize},
-  {color: "midnightblue", position: {x:0, y:2}, size: defaultZoneSize},
-  {color: "midnightblue", position: {x:1, y:2}, size: defaultZoneSize},
-  {color: "midnightblue", position: {x:2, y:2}, size: defaultZoneSize}
+  {position: {x:0, y:0}, size: defaultZoneSize},
+  {position: {x:1, y:0}, size: defaultZoneSize},
+  {position: {x:2, y:0}, size: defaultZoneSize},
+  {position: {x:0, y:1}, size: defaultZoneSize},
+  {position: {x:1, y:1}, size: defaultZoneSize},
+  {position: {x:2, y:1}, size: defaultZoneSize},
+  {position: {x:0, y:2}, size: defaultZoneSize},
+  {position: {x:1, y:2}, size: defaultZoneSize},
+  {position: {x:2, y:2}, size: defaultZoneSize}
 ];
 
 const allZones = new Set(map);
@@ -903,23 +902,19 @@ function drawBg(
   player: Thing,
   GAMEDATA: GameData
 ){
-  const {position, size: {h, w}, color} = zone;
+  const {position, size: {h, w}} = zone;
   const {x, y} = positionZoneConverter(position);
   const {displaceX, displaceY} = playerZoneDisplace(player);
-  ctx.fillStyle = color;
   ctx.translate(x - displaceX, y - displaceY);
   ctx.fillRect(0, 0, w + 1, h + 1);
   for (let ay = 0; ay < 12; ay++ ){
     for (let ax = 0; ax < 20; ax++){
-
       ctx.translate(64*ax, 64*ay);
       ctx.drawImage(GAMEDATA.bitmapImage, 95, 75, 65, 65, 0, 0, 65, 65);  
       ctx.translate(-64*ax, -64*ay);
     }
   }
-
   ctx.translate(-(x - displaceX), -(y - displaceY));
-
 }
 
 function sH(keyCode: string) {
@@ -1015,16 +1010,13 @@ function getDistanceToThing(position: Position, targetPosition: Position){
 }
 
 function getMagnitudeXY(position: Position, targetPosition: Position){
-
   const {omx, omy} = getDistanceToThing(position, targetPosition);
-
   return Math.sqrt(omx * omx + omy * omy);
 }
 
 
 function normalizeMagnitude(position: Position, targetPosition: Position){
-  const omx = (targetPosition.x - position.x) ;
-  const omy = (targetPosition.y - position.y) ;
+  const {omx, omy} = getDistanceToThing(position, targetPosition);
   
   const magdeb = Math.sqrt(omx * omx + omy * omy);
 
@@ -1047,7 +1039,6 @@ function getDistanceMovedTowardsThing(elapsedS: number, thing: Thing, targetPosi
     distX = omx;
     distY = omy;
   }
-
   return {x: distX, y: distY};
 }
 
@@ -1203,6 +1194,10 @@ function moveThings(elapsedS: number, thing: Thing, things: Thing[]) {
 
 function rotatospotatos(thing: Thing, position: Position, rotationTarget: Position){
   thing.rotation = (Math.atan2(rotationTarget.y - position.y, rotationTarget.x - position.x))-(Math.PI/4) ;
+}
+
+function setNextMoveStep(thing: Thing){
+  
 }
 
 
