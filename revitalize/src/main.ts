@@ -54,9 +54,7 @@ type Attack = {
   targetCollisionLayer: Set<number>,
   color: string,
   animation: AnimationValues,
-  targetPosition: Position,
-  rotationTarget: Position,
-  rotation: number,
+  target: Thing,
   innerRange: number,
   outerRange: number,
   thingAttacked: Set<Thing>,
@@ -110,9 +108,9 @@ type Thing = {
   targetCollisionLayer: Set<number>,
   color: string,
   animation: AnimationValues,
-  targetPosition: Position,
-  rotationTarget: Position,
-  rotation: number,
+  target: Thing,
+  distanceToTarget: number,
+  nextStep: Position
 }
 
 const EnumThingVariant = {
@@ -338,9 +336,9 @@ function createAttack(newAttack: Attack): Thing{
     targetCollisionLayer: new Set(newAttack.targetCollisionLayer),
     color: newAttack.color,
     animation: newAttack.animation,
-    targetPosition: newAttack.targetPosition,
-    rotationTarget: newAttack.rotationTarget,
-    rotation: newAttack.rotation,
+    target: newAttack.target,
+    distanceToTarget: 100,
+    nextStep: {x: 0, y: 0}
   };
 
 }
@@ -387,9 +385,7 @@ function createPlayer(): Thing {
           },
           frameLength: 1000
         },
-        targetPosition: {} as Position, 
-        rotationTarget: {} as Position, 
-        rotation: 0, 
+        target: {} as Thing,
         innerRange: 0, 
         outerRange: 60,
         thingAttacked: new Set()
@@ -425,9 +421,7 @@ function createPlayer(): Thing {
           },
           frameLength: 1000
         },
-        targetPosition: {} as Position, 
-        rotationTarget: {} as Position, 
-        rotation: 0, 
+        target: {} as Thing,
         innerRange: 0, 
         outerRange: 60,
         thingAttacked: new Set()
@@ -468,13 +462,15 @@ function createPlayer(): Thing {
       },
       frameLength: 1000/4
     },
-    targetPosition: {
-      x: (3 * defaultZoneSize.w) / 2,
-      y: (3 * defaultZoneSize.h) / 2,
-    },
-    rotationTarget: mousePosition,
-    rotation: 0,
-  };
+    target: {
+        position: {
+          x: (3 * defaultZoneSize.w) / 2,
+          y: (3 * defaultZoneSize.h) / 2,
+        },
+    } as Thing,
+    distanceToTarget: 0,
+    nextStep: {x: 0, y: 0}
+ };
 }
 
 function swapWithLastAndPop(things: Thing[], idx: number){
@@ -531,9 +527,7 @@ function randomThingCreator(things: Thing[], playerTarget: Thing, position: Posi
           },
           frameLength: 1000
         },
-        targetPosition: {} as Position, 
-        rotationTarget: {} as Position, 
-        rotation: 0, 
+        target: playerTarget,
         innerRange: 0, 
         outerRange: 40,
         thingAttacked: new Set()
@@ -569,9 +563,9 @@ function randomThingCreator(things: Thing[], playerTarget: Thing, position: Posi
         },
         frameLength: 1000/4
       },
-      targetPosition: playerTarget.position,
-      rotationTarget: playerTarget.position,
-      rotation: 0,
+      target: playerTarget,
+      distanceToTarget: 100,
+      nextStep: {x:0, y:0}
     }
   )
 }
@@ -622,9 +616,7 @@ function randomFastThingCreator(things: Thing[], playerTarget: Thing, position: 
           },
           frameLength: 1000
         },
-        targetPosition: {} as Position, 
-        rotationTarget: {} as Position, 
-        rotation: 0, 
+        target: {} as Thing, 
         innerRange: 0, 
         outerRange: 40,
         thingAttacked: new Set()
@@ -660,9 +652,9 @@ function randomFastThingCreator(things: Thing[], playerTarget: Thing, position: 
         },
         frameLength: 1000/4
       },
-      targetPosition: playerTarget.position,
-      rotationTarget: playerTarget.position,
-      rotation: 0,
+      target: playerTarget,
+      distanceToTarget: 100,
+      nextStep: {x:0, y:0}
     }
   )
 }
@@ -713,9 +705,7 @@ function randomRangedThingCreator(things: Thing[], playerTarget: Thing, position
           },
           frameLength: 1000
         },
-        targetPosition: {} as Position, 
-        rotationTarget: {} as Position, 
-        rotation: 0, 
+        target: {} as Thing, 
         innerRange: 0, 
         outerRange: 500,
         thingAttacked: new Set()
@@ -751,9 +741,9 @@ function randomRangedThingCreator(things: Thing[], playerTarget: Thing, position
         },
         frameLength: 1000/4
       },
-      targetPosition: playerTarget.position,
-      rotationTarget: playerTarget.position,
-      rotation: 0,
+      target: playerTarget,
+      distanceToTarget: 100,
+      nextStep: {x:0, y:0}
     }
   )
 }
@@ -866,12 +856,11 @@ function drawThing(
       lsh = sh;
     }
 
-  const {size: {halfSizeW, halfSizeH}, rotation} = thing;
+  const {size: {halfSizeW, halfSizeH}} = thing;
   const {x, y} = position;
   const {displaceX, displaceY} = displace;
   //ctx.fillStyle = color;
   ctx.translate(x - displaceX, y - displaceY);
-  ctx.rotate(rotation);
   ctx.translate(-halfSizeW, -halfSizeH);
   //ctx.fillRect(0, 0, w, h);
   if(thing.facingEast){
@@ -885,7 +874,6 @@ function drawThing(
     ctx.scale(-1, 1);
   }
   ctx.translate(halfSizeW, halfSizeH);
-  ctx.rotate(-(rotation));
   ctx.translate(-(x - displaceX), - (y - displaceY));
 }
 
@@ -928,19 +916,19 @@ function processPlayerInput(player: Thing, things: Thing[]){
     player.moving = true;
     if(sH('KeyA')) {
       //A
-      player.targetPosition.x = player.position.x - 20;
+      player.target.position.x = player.position.x - 20;
     }
     if(sH('KeyD')) {
       //D
-      player.targetPosition.x = player.position.x + 20;
+      player.target.position.x = player.position.x + 20;
     }
     if(sH('KeyS')) {
       //S
-      player.targetPosition.y = player.position.y + 20;
+      player.target.position.y = player.position.y + 20;
     }
     if(sH('KeyW')) {
       //W
-      player.targetPosition.y = player.position.y - 20;
+      player.target.position.y = player.position.y - 20;
     }
   } else {
     player.moving = false;
@@ -978,12 +966,12 @@ function configureAttack(things: Thing[], thing:Thing, attackBase: Attack, displ
       const {nmx, nmy} = normalizeMagnitude(thing.position, {x: displaceX + targetPosition.x, y: displaceY + targetPosition.y});
       const positionX = thing.position.x + (nmx * (thing.size.halfSizeW + attackBase.size.halfSizeW));
       const positionY = thing.position.y + (nmy * (thing.size.halfSizeH + attackBase.size.halfSizeH));
-      const meleeAttack = {...attackBase, position: {x: positionX, y: positionY}};
+      const meleeAttack = {...attackBase, target: {position: {x: targetPosition.x, y: targetPosition.y}} as Thing, position: {x: positionX, y: positionY}};
       thing.attack[0].elapsed = 0;
       things.push(createAttack(meleeAttack));
       break;
     case EnumAttackVariant.ranged:
-      const rangedAttack = {...attackBase, moving: true, elapsed: 0, position:{x:thing.position.x, y: thing.position.y}, targetPosition: {x: targetPosition.x, y: targetPosition.y}, color: "orange"};
+      const rangedAttack = {...attackBase, moving: true, elapsed: 0, target: {position: {x: targetPosition.x, y: targetPosition.y}} as Thing, position:{x:thing.position.x, y: thing.position.y}, targetPosition: {x: targetPosition.x, y: targetPosition.y}, color: "orange"};
       if(thing.variant === EnumThingVariant.player) thing.attack[1].elapsed = 0;
       else thing.attack[0].elapsed = 0;
       things.push(createAttack(rangedAttack));
@@ -1042,7 +1030,6 @@ function getDistanceMovedTowardsThing(elapsedS: number, thing: Thing, targetPosi
   return {x: distX, y: distY};
 }
 
-
 function collisionDetector(thingA: Thing, thingANewPos: Position, thingB: Thing ){
   const {t: at, b: ab, l: al, r: ar} = getEdges(thingANewPos, thingA.size);
   const {t: bt, b: bb, l: bl, r: br} = getEdges(thingB.position, thingB.size);
@@ -1071,11 +1058,11 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
   let distanceX = 0;
   let distanceY = 0;
 
-  if(thing.position.x === thing.targetPosition.x && thing.position.y === thing.targetPosition.y){
+  if(thing.position.x === thing.target.position.x && thing.position.y === thing.target.position.y){
     distanceX = 0;
     distanceY = 0;
   } else {
-    ({x: distanceX, y: distanceY} = getDistanceMovedTowardsThing(elapsedS, thing, thing.targetPosition));
+    ({x: distanceX, y: distanceY} = getDistanceMovedTowardsThing(elapsedS, thing, thing.target.position));
   }
 
   let targetPositionX = thing.position.x + distanceX;
@@ -1165,7 +1152,7 @@ function moveAndCollide(elapsedS: number, thing: Thing, things: Thing[]){
 
   if(thing.variant === EnumThingVariant.enemy && thing.attack[0].variant === EnumAttackVariant.ranged){
     thing.moving = true;
-    if(getMagnitudeXY(thing.position, thing.targetPosition) - 20 < thing.attack[0].outerRange){
+    if(getMagnitudeXY(thing.position, thing.target.position) - 20 < thing.attack[0].outerRange){
       distanceX = 0;
       distanceY = 0;
       thing.moving = false;
@@ -1192,12 +1179,44 @@ function moveThings(elapsedS: number, thing: Thing, things: Thing[]) {
   }
 }
 
-function rotatospotatos(thing: Thing, position: Position, rotationTarget: Position){
-  thing.rotation = (Math.atan2(rotationTarget.y - position.y, rotationTarget.x - position.x))-(Math.PI/4) ;
+function distanceAndNormalizeMagnitude(elapsedS: number, thing: Thing, targetThing: Thing){
+  const position = thing.position;
+  const targetPosition = targetThing.position;
+  const omx = targetPosition.x - position.x;
+  const omy = targetPosition.y - position.y;
+
+  const magnitude = Math.sqrt(omx*omx + omy*omy);
+
+  let nmx = 0;
+  let nmy = 0;
+  if (magnitude > 0.05) {
+    nmx = omx/magnitude;
+    nmy = omy/magnitude;
+  }
+
+  let velocityX = thing.speed * nmx * (1-thing.slowed);
+  let velocityY = thing.speed * nmy * (1-thing.slowed);
+
+  let distX = velocityX * elapsedS;
+  let distY = velocityY * elapsedS;
+  let magnitudeDistance = Math.sqrt(distX*distX + distY*distY);
+
+  if(magnitudeDistance > magnitude){
+    distX = omx;
+    distY = omy;
+  }
+
+  return {distX, distY, magnitude};
+  
 }
 
-function setNextMoveStep(thing: Thing){
-  
+function pollMovementAndTargetDistance(elapsedS: number, thing: Thing){
+  const {distX, distY, magnitude} = distanceAndNormalizeMagnitude(elapsedS, thing, thing.target);
+
+  thing.distanceToTarget = magnitude;
+
+  thing.nextStep.x = distX + thing.position.x;
+  thing.nextStep.y = distY + thing.position.y;
 }
 
 
@@ -1227,7 +1246,6 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
         if(thing.hp <= 0){
           thing.active = false;
           RUNNING = false;
-          getDebug(`${"You have been moiderd."}`);
         }
         break;
       case EnumThingVariant.enemy:
@@ -1249,18 +1267,18 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
         } else {
           const tAtk = thing.attack[0];
           tAtk.elapsed += elapsedS;
-          const distanceToPlayer = getMagnitudeXY(thing.position, thing.targetPosition);
+          const distanceToPlayer = getMagnitudeXY(thing.position, thing.target.position);
 
           if(tAtk.variant === EnumAttackVariant.ranged && tAtk.elapsed >= (tAtk.cooldown + tAtk.leadUp)){
             if(distanceToPlayer < tAtk.outerRange){
               tAtk.elapsed = 0;
-              configureAttack(things, thing, tAtk, 0, 0, thing.targetPosition);
+              configureAttack(things, thing, tAtk, 0, 0, thing.target.position);
             }
 
           } else {
             if(distanceToPlayer - thing.size.halfSizeW - playerSize.w < 3 && tAtk.elapsed >= (tAtk.cooldown + tAtk.leadUp)){
               tAtk.elapsed = 0;
-              configureAttack(things, thing, tAtk, 0, 0, thing.targetPosition);
+              configureAttack(things, thing, tAtk, 0, 0, thing.target.position);
 
             }
           }
@@ -1273,7 +1291,8 @@ function action(elapsedS: number, thing: Thing, things: Thing[], thingIdx: numbe
           thing.hp = 0;
           thing.active = false;
         }
-        if(attack.variant === EnumAttackVariant.ranged && getMagnitudeXY(thing.position, thing.targetPosition) < 3){
+        console.log(thing.variant)
+        if(attack.variant === EnumAttackVariant.ranged && getMagnitudeXY(thing.position, thing.target.position) < 3){
           thing.hp = 0;
           thing.active = false;
         }
@@ -1354,8 +1373,6 @@ function renderUI(elapsedS: number, ctx: CanvasRenderingContext2D, player: Thing
 
 }
 
-
-
 function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number, GAMEDATA: GameData) {
   const {player, things, activeZones } = GAMEDATA; 
   const elapsed = timestamp - prevTime;
@@ -1365,16 +1382,15 @@ function run(ctx: CanvasRenderingContext2D, prevTime: number, timestamp: number,
     waveHandler(GAMEDATA);
 
     things.forEach((thing, idx) => {
+      pollMovementAndTargetDistance(elapsedS, thing);
       action(elapsedS, thing, things, idx, GAMEDATA);
     });
-
     //CALCULATIONS AND PHYSICS
 
     for(let idx = 0; idx < (things.length); idx++){
       const thing = things[idx];
       if (thing.active){
         moveThings(elapsedS, thing, things);
-        if(thing.variant === EnumThingVariant.attack) rotatospotatos(thing, thing.position, thing.rotationTarget);
       }
     };
 
@@ -1455,6 +1471,7 @@ function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, bitmapI
         }
     }
   });
+
   addEventListener("keyup", (event) => {
     switch (event.code){
       case 'KeyP': 
@@ -1464,7 +1481,6 @@ function addEL(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, bitmapI
     if(keyMaps.has(event.code)) activeKeys.delete(event.code);
   });
 }
-
 
 type GameData = {
   player: Thing,
@@ -1501,6 +1517,18 @@ function init(ctx: CanvasRenderingContext2D, pause: boolean, bitmapImage: ImageB
 }
 
 
+function printControls(ctx: CanvasRenderingContext2D){
+    ctx.font = "32px serif"
+    ctx.textAlign = "center";
+    ctx.fillText("Controlls:", defaultZoneSize.w/2, defaultZoneSize.h/3);
+    ctx.fillText("WASD - Movement", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48);
+    ctx.fillText("Space - Melee Attack", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 2);
+    ctx.fillText("Left Mouse Click - Ranged Atttack", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 3);
+    ctx.fillText("Shift - Speed boost", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 4);
+    ctx.fillText("P - Pause", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 5);
+    ctx.fillText("R - Restart game (RR if not dead)", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 6);
+}
+
 
 async function config(){
   const canvas = gEI("cv") as HTMLCanvasElement | null;
@@ -1519,23 +1547,14 @@ async function config(){
   img.onload = async () =>{
     bitmapImage = await createImageBitmap(img);
     if(!bitmapImage) return 1;
-    addEL(canvas, ctx, bitmapImage);
-    ctx.font = "32px serif"
-    ctx.textAlign = "center";
-    ctx.fillText("Controlls:", defaultZoneSize.w/2, defaultZoneSize.h/3);
-    ctx.fillText("WASD - Movement", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48);
-    ctx.fillText("Space - Melee Attack", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 2);
-    ctx.fillText("Left Mouse Click - Ranged Atttack", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 3);
-    ctx.fillText("Shift - Speed boost", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 4);
-    ctx.fillText("P - Pause", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 5);
-    ctx.fillText("R - Restart game (RR if not dead)", defaultZoneSize.w/2, defaultZoneSize.h/3 + 48 * 6);
 
+    addEL(canvas, ctx, bitmapImage);
+    
+    printControls(ctx)
 
     init(ctx, true, bitmapImage);
   
   };
-
-  
 }
 
 config();
